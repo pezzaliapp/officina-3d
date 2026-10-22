@@ -1,24 +1,35 @@
 import * as THREE from 'three'
 import { Section } from '../core/section'
 import { Machine, IND } from '../core/machine'
-import { WHEELS, WheelSpec, wheelGeometry } from '../core/wheel'
+import { InterferenceCheck, Hit } from '../core/interference'
+import { WHEELS, WheelSpec, wheelGeometry, tireHalfWidth } from '../core/wheel'
 import { num } from '../ui'
 import { PARTS } from './parts'
-import { TireChangerModel, TT_Y, TT_Z, COL_P, BB_P, ARM_L, BLADE_Y, PAD_X, BB_LEVER, BB_ANCHOR, HelperTool } from './model'
+import { TireChangerModel, TT_Y, TT_Z, COL_P, BB_P, BLADE, BLADE_Y, BLADE_HALF, PAD_X, BB_LEVER, BB_ANCHOR, HOLD, JAW_LIP, JAW_TOP, HelperTool, Press } from './model'
 import { SPEC, BAR, area, tireData, turntableTorque, jawForce, inflowRate, pressureRise, reduction } from './physics'
 
 type Fase = 'pronta' | 'stallonata' | 'bloccata' | 'smontata' | 'montata' | 'gonfia'
 type Co = Generator<void, void, number>
+type Tool = 'rullo' | 'disco' | 'cono'
+type Pose = { pos: THREE.Vector3; quat: THREE.Quaternion }
+/** Stato del comando dello stallonatore. */
+type BBMode = 'riposo' | 'avvicinamento' | 'spinta' | 'distacco' | 'ritorno' | 'arresto' | 'fermo'
 
 const COL_BACK_TILT = -0.42
-const HEX_UP = 0.24
+/** Corsa dell'asta: alzata, la testina passa sopra il pneumatico sfilato. */
+const HEX_UP = 0.34
+/** Quota in profondità dove la ruota in piedi può girare e alzarsi lontano dal mobile. */
+const Z_CLEAR = 0.8
 const Y = new THREE.Vector3(0, 1, 0)
 const ease = (k: number) => k * k * (3 - 2 * k)
 const lerp = THREE.MathUtils.lerp
+const qY = (a: number) => new THREE.Quaternion().setFromAxisAngle(Y, a)
+const FLAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2)
+const PARK = { swing: 2.3, reach: 0.4, drop: HOLD }
 
 /** Passi del ciclo con la fase da cui partono. */
 const STEPS: { id: string; from: Fase; title: string; desc: string }[] = [
-  { id: 'stallona', from: 'pronta', title: 'Stallonatura', desc: 'paletta sui due fianchi' },
+  { id: 'stallona', from: 'pronta', title: 'Stallonatura', desc: 'pulsantiera: lama sui due fianchi' },
   { id: 'blocca', from: 'stallonata', title: 'Bloccaggio', desc: 'cono di centraggio e griffe' },
   { id: 'smonta', from: 'bloccata', title: 'Smontaggio', desc: 'disco, rullo, leva e utensile' },
   { id: 'monta', from: 'smontata', title: 'Montaggio', desc: 'rullo e disco tengono il tallone nel canale' },
@@ -30,7 +41,7 @@ const PANE = `
   <p data-id="messaggio" class="messaggio"></p>
   <div class="manometro">
     <div><small>Pneumatico</small><b data-id="pt">0,00 bar</b></div>
-    <div><small>Forza paletta</small><b data-id="fb">0,0 kN</b></div>
+    <div><small>Forza lama</small><b data-id="fb">0,0 kN</b></div>
     <div><small>Piatto</small><b data-id="rpm">0 giri/min</b></div>
   </div>
   <ol class="passi">${STEPS.map((s, i) => `<li><button data-step="${s.id}"><span class="n">${i + 1}</span><span>${s.title}<small>${s.desc}</small></span></button></li>`).join('')}</ol>
@@ -38,14 +49,22 @@ const PANE = `
     <button data-id="ciclo" class="primario">▶ Ciclo completo</button>
     <button data-id="nuovo">Nuovo ciclo</button>
   </div>
+  <p class="legenda">Pulsantiera dello stallonatore</p>
+  <div class="riga">
+    <button data-id="b-stallona">STALLONA</button>
+    <button data-id="b-ritorno">RITORNO</button>
+    <button data-id="b-arresto">ARRESTO</button>
+  </div>
   <div class="riga">
     <label class="campo">Ruota <select data-id="ruota"></select></label>
   </div>
   <label class="spunta"><input data-id="helper" type="checkbox" checked /> Usa il braccio di aiuto</label>`
 
 const TEXT = `
-  <h3>Stallonatura: pressione per area, poi leva</h3>
-  <p>Il cilindro dello stallonatore spinge con <code>F = p · A</code>: a 10 bar un alesaggio di 200 mm dà circa 31 kN. La forza arriva alla paletta attraverso il braccio, che è una leva: vale l'equilibrio dei momenti attorno al perno, <code>F<sub>cil</sub> · b<sub>cil</sub> = F<sub>pal</sub> · b<sub>pal</sub></code>. La paletta schiaccia il fianco finché la forza supera la tenuta del tallone sulla sede conica del cerchio, poi il tallone scatta verso il canale.</p>
+  <h3>Stallonatura: pulsantiera, elettrovalvola, cilindro</h3>
+  <p>Lo stallonatore si comanda dalla pulsantiera sul fianco. STALLONA eccita una bobina dell'elettrovalvola, che manda aria alla camera di spinta del cilindro: il braccio avvicina la lama al fianco, poi la pressione sale finché il tallone si stacca. La centralina riconosce il distacco dallo scatto in avanti della lama, toglie corrente alla prima bobina ed eccita la seconda: l'aria va nella camera lato stelo e il braccio torna indietro. RITORNO fa tornare subito il braccio; ARRESTO toglie corrente a entrambe le bobine e l'elettrovalvola, al centro, scarica le due camere.</p>
+  <h3>Forza sulla lama: pressione per area, poi leva</h3>
+  <p>Il cilindro spinge con <code>F = p · A</code>: a 10 bar un alesaggio di 200 mm dà circa 31 kN. La forza arriva alla lama attraverso il braccio, che è una leva: vale l'equilibrio dei momenti attorno al perno, <code>F<sub>cil</sub> · b<sub>cil</sub> = F<sub>lama</sub> · b<sub>lama</sub></code>. Il braccio è a gomito: esce dal fianco dietro la ruota e corre in avanti fuori dal pneumatico, così solo la lama tocca il fianco, vicino alla balconata.</p>
   <h3>Smontaggio e montaggio: il canale del cerchio</h3>
   <p>Il tallone contiene un cerchietto d'acciaio che non si allunga. Per farlo passare sopra la balconata bisogna portare la parte opposta nel canale, dove il diametro è più piccolo: la "corda" che avanza basta a superare la balconata vicino all'utensile. Il braccio di aiuto fa proprio questo, tenendo il tallone nel canale col rullo e col disco mentre il piatto gira.</p>
   <h3>Rotazione: il riduttore</h3>
@@ -53,7 +72,41 @@ const TEXT = `
   <h3>Gonfiaggio: la legge dei gas</h3>
   <p>Il volume del pneumatico resta quasi costante, quindi a temperatura costante la pressione cresce in proporzione all'aria immessa: <code>dp = p<sub>atm</sub> · dV<sub>aria</sub> / V</code>. La portata cala man mano che la pressione nel pneumatico si avvicina a quella di linea. Il tallonamento avviene a bassa pressione: oltre il limite indicato non si va mai.</p>`
 
-export function createTireChanger(section: Section): Machine {
+/** Compenetrazione registrata durante un passo del ciclo. */
+export interface Clash extends Hit { wheel: string; step: string; msg: string }
+
+/** Smontagomme con gli agganci per la verifica automatica del ciclo (tools/verifica.ts). */
+export interface TireChanger extends Machine {
+  readonly test: {
+    setWheel(id: string): void
+    setHelper(on: boolean): void
+    /** Controllo di compenetrazione a ogni fotogramma invece che uno su tre. */
+    checkEveryFrame(): void
+    run(id: string): void
+    /** Pulsanti della pulsantiera, come dal pannello. */
+    button(id: 'stallona' | 'ritorno' | 'arresto'): void
+    readonly clashes: Clash[]
+  }
+}
+
+/** Tolleranza del controllo di compenetrazione, m. */
+const CLASH_TOL = 0.002
+/** Nel browser il controllo di compenetrazione gira un fotogramma su tre. */
+const CHECK_EVERY = 3
+
+/** Posa lungo una spezzata di pose, con k da 0 a 1 in proporzione alla strada fatta (le rotazioni contano come strada). */
+function posePath(poses: Pose[], k: number): Pose {
+  const len = [0]
+  for (let i = 1; i < poses.length; i++) len.push(len[i - 1] + poses[i].pos.distanceTo(poses[i - 1].pos) + 0.3 * poses[i].quat.angleTo(poses[i - 1].quat) + 1e-6)
+  const at = THREE.MathUtils.clamp(k, 0, 1) * len[len.length - 1]
+  let i = 1
+  while (i < poses.length - 1 && len[i] < at) i++
+  const t = (at - len[i - 1]) / (len[i] - len[i - 1])
+  return { pos: poses[i - 1].pos.clone().lerp(poses[i].pos, t), quat: poses[i - 1].quat.clone().slerp(poses[i].quat, t) }
+}
+const pose = (x: number, y: number, z: number, q: THREE.Quaternion): Pose => ({ pos: new THREE.Vector3(x, y, z), quat: q.clone() })
+
+export function createTireChanger(section: Section): TireChanger {
   const model = new TireChangerModel(section)
   let spec: WheelSpec = WHEELS[1]
   let geo = wheelGeometry(spec)
@@ -68,14 +121,18 @@ export function createTireChanger(section: Section): Machine {
     hex: HEX_UP,
     lock: 0,
     leverK: 0,
-    bbPhi: 0.6,
+    leverSet: 'upper' as 'upper' | 'lower',
+    bbPhi: 0.3,
     jawR: 0.27,
     ttAngle: 0,
     ttOmega: 0,
     wheelSpin: 0,
     onTT: false,
-    pose: { pos: new THREE.Vector3(), quat: new THREE.Quaternion() },
-    tire: { u: 0, alpha: 0, rest: 0, lag: 0 },
+    pose: { pos: new THREE.Vector3(), quat: new THREE.Quaternion() } as Pose,
+    /** Pneumatico rispetto al cerchio: alzata lungo l'asse, inclinazione, ritardo di rotazione e tragitto verso terra. */
+    tire: { u: 0, alpha: 0, lag: 0, away: 0 },
+    /** Talloni allargati attorno alla testina (0..1). */
+    bulge: { upper: 0, lower: 0 },
     pBead: 0,
     pJaw: 0,
     pTire: 0,
@@ -85,19 +142,20 @@ export function createTireChanger(section: Section): Machine {
     flow: 0,
     seat: 1,
     air: new Set<string>(),
-    pedal: [0, 0, 0, 0],
-    pedalT: [0, 0, 0, 0],
+    pedal: [0, 0, 0],
+    pedalT: [0, 0, 0],
+    btn: { stallona: 0, ritorno: 0, arresto: 0 },
+    btnT: { stallona: 0, ritorno: 0, arresto: 0 },
+    bb: { mode: 'riposo' as BBMode, a: false, b: false, sides: 0, flipped: false },
     joy: 0,
     worm: 0,
     roll: 0,
-    contacts: new Map<string, { at: THREE.Vector3; depth: number }>(),
-    tools: {
-      rullo: { swing: 2.3, reach: 0.4, drop: -0.18 },
-      disco: { swing: 2.3, reach: 0.4, drop: -0.18 },
-      cono: { swing: 2.3, reach: 0.4, drop: -0.18 },
-    } as Record<'rullo' | 'disco' | 'cono', { swing: number; reach: number; drop: number }>,
+    /** Utensili dell'helper che premono il fianco: punto (x, z) fisso e schiacciamento. */
+    press: new Map<'rullo' | 'disco', { x: number; z: number; depth: number }>(),
+    tools: { rullo: { ...PARK }, disco: { ...PARK }, cono: { ...PARK } } as Record<Tool, { swing: number; reach: number; drop: number }>,
   }
   let job: Co | null = null
+  let stepId = ''
   let el: Record<string, HTMLElement> = {}
   let airPhase = 0
   let dirty = true
@@ -105,47 +163,73 @@ export function createTireChanger(section: Section): Machine {
   // ---------- geometria che dipende dalla ruota ----------
 
   const flangeR = () => geo.rimR + 0.019
+  const jawOpen = () => Math.min(flangeR() + 0.012, 0.275)
   /** Centro della ruota sdraiata sul piatto, appoggiata sui gradini delle griffe. */
   const ttCenterY = () => TT_Y + 0.039 + geo.width / 2
   const flangeTopY = () => ttCenterY() + geo.width / 2 + 0.009
-  /** Faccia interna della paletta in funzione dell'angolo del braccio. */
-  const bladeX = (phi: number) => BB_P.x + ARM_L * Math.sin(phi) - 0.037
-  const phiForX = (x: number) => Math.asin(THREE.MathUtils.clamp((x + 0.037 - BB_P.x) / ARM_L, -1, 1))
+
+  // Lama: il bordo di spinta gira attorno al perno con il braccio.
+  const RE = Math.hypot(BLADE.x, BLADE.z), TH = Math.atan2(BLADE.x, BLADE.z)
+  const bladeX = (phi: number) => BB_P.x + RE * Math.sin(phi + TH)
+  const bladeZ = (phi: number) => BB_P.z + RE * Math.cos(phi + TH)
+  const phiForX = (x: number) => Math.asin(THREE.MathUtils.clamp((x - BB_P.x) / RE, -1, 1)) - TH
+  /** Raggio a cui la lama tocca il fianco, a 45 mm dalla sede del tallone. */
+  const contactR = () => geo.rimR + 0.045
+  /** Distanza orizzontale tra il centro della ruota e il bordo della lama. */
+  const contactZ = () => Math.sqrt(Math.max(contactR() ** 2 - (BLADE_Y - geo.tireR) ** 2, 0))
   const wheelX = () => PAD_X + geo.tireW / 2
-  const sideX = () => wheelX() + geo.tireW / 2
+  /** Fianco più sporgente sotto il bordo della lama (il bordo è un arco alto 2·BLADE_HALF). */
+  const sideX = () => {
+    let m = 0
+    for (let i = -4; i <= 4; i++) m = Math.max(m, tireHalfWidth(spec, Math.hypot(BLADE_Y + (BLADE_HALF * i) / 4 - geo.tireR, contactZ())))
+    return wheelX() + m
+  }
   const phiContact = () => phiForX(sideX())
   const phiOpen = () => phiForX(sideX() + 0.16)
-  const wheelZ = () => BB_P.z + ARM_L * Math.cos(phiContact()) - (geo.rimR + 0.045)
+  const wheelZ = () => bladeZ(phiContact()) - contactZ()
 
-  function poseBB(inner: boolean) {
-    const q = new THREE.Quaternion()
-    if (inner) q.setFromAxisAngle(Y, Math.PI)
-    return { pos: new THREE.Vector3(wheelX(), geo.tireR, wheelZ()), quat: q }
-  }
-  function poseTT() {
-    return { pos: new THREE.Vector3(0, ttCenterY(), TT_Z), quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2) }
-  }
-  const restPose = () => ({ pos: new THREE.Vector3(-0.9, geo.tireW / 2, 0.5), quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2) })
+  const poseBB = (inner: boolean) => pose(wheelX(), geo.tireR, wheelZ(), inner ? qY(Math.PI) : new THREE.Quaternion())
+  const poseTT = () => pose(0, ttCenterY(), TT_Z, FLAT)
+  const restPose = () => pose(-0.9, geo.tireW / 2, 0.5, FLAT)
 
-  /** Punti di lavoro degli utensili dell'helper sulla ruota sdraiata. */
-  const sideTopY = () => ttCenterY() + geo.width / 2 + 0.016
+  /** Ruota in piedi: si stacca dai tamponi, avanza fuori dall'ingombro di lama e mobile, gira su sé stessa e torna. */
+  function flipPath(fromInner: boolean): Pose[] {
+    const a = poseBB(fromInner), b = poseBB(!fromInner)
+    const x = a.pos.x + 0.03, y = geo.tireR
+    return [a, pose(x, y, a.pos.z, a.quat), pose(x, y, Z_CLEAR, a.quat), pose(x, y, Z_CLEAR, qY(Math.PI / 2).multiply(a.quat)), pose(x, y, Z_CLEAR, b.quat), pose(x, y, b.pos.z, b.quat), b]
+  }
+  /** Dallo stallonatore al piatto: avanti, su in piedi, poi sdraiata sopra il piatto e giù sulle griffe. */
+  function toTTPath(from: Pose): Pose[] {
+    const x = from.pos.x + 0.03, up = ttCenterY() + 0.16
+    return [from, pose(x, from.pos.y, from.pos.z, from.quat), pose(x, from.pos.y, Z_CLEAR, from.quat), pose(0.55, 1.3, Z_CLEAR, from.quat), pose(0.25, up, 0.35, FLAT), pose(0, up, TT_Z, FLAT), poseTT()]
+  }
+  /** Pneumatico sfilato: avanti sopra il piano, a sinistra oltre il braccio di aiuto, poi a terra. */
+  function awayPath(start: Pose): Pose[] {
+    const y = start.pos.y + 0.03, r = restPose()
+    return [start, pose(start.pos.x, y, 0.55, start.quat), pose(r.pos.x, y, r.pos.z, FLAT), r]
+  }
+
+  /** Raggio dell'impronta di rullo e disco sul fianco. */
+  const FOOT = { rullo: 0.027, disco: 0.062 }
+  /** Punti di lavoro degli utensili dell'helper, sul punto più alto del fianco sotto l'impronta, com'è adesso. */
+  const onSide = (x: number, z: number, rho: number) => new THREE.Vector3(x, model.surfaceMax(x, z, rho) + 0.003, z)
   const target = {
     // rullo davanti, dal lato opposto all'utensile di montaggio (che è dietro)
-    rullo: () => new THREE.Vector3(-0.06, sideTopY(), TT_Z + geo.rimR + 0.035),
+    rullo: () => onSide(-0.06, TT_Z + geo.rimR + 0.035, FOOT.rullo),
     // disco a sinistra, vicino alla balconata
-    disco: () => new THREE.Vector3(-(geo.rimR + 0.04), sideTopY(), TT_Z + 0.04),
+    disco: () => onSide(-(geo.rimR + 0.04), TT_Z + 0.04, FOOT.disco),
     // cono sul mozzo del cerchio
     cono: () => new THREE.Vector3(0, ttCenterY() + spec.et + 0.016, TT_Z),
   }
 
-  /** Rapporto tra forza alla paletta e forza del cilindro (equilibrio dei momenti attorno al perno). */
+  /** Rapporto tra forza alla lama e forza del cilindro (equilibrio dei momenti attorno al perno). */
   function leverRatio(phi: number) {
-    const q = new THREE.Quaternion().setFromAxisAngle(Y, phi)
+    const q = qY(phi)
     const le = BB_LEVER.clone().applyQuaternion(q) // leva, rispetto al perno
     const dir = le.clone().add(BB_P).sub(BB_ANCHOR).normalize() // spinta del cilindro
     const tc = Math.abs(le.z * dir.x - le.x * dir.z)
-    const blade = new THREE.Vector3(-0.037, BLADE_Y - BB_P.y, ARM_L).applyQuaternion(q)
-    const tb = Math.abs(blade.z) // la paletta spinge lungo −x
+    const blade = BLADE.clone().applyQuaternion(q)
+    const tb = Math.abs(blade.z) // la lama spinge lungo −x
     return tc / tb
   }
 
@@ -155,14 +239,17 @@ export function createTireChanger(section: Section): Machine {
     tire = tireData(spec)
     model.buildWheel(spec)
     st.bbPhi = phiOpen()
-    st.jawR = Math.min(flangeR() + 0.05, 0.275)
+    st.jawR = jawOpen()
     const p = poseBB(false)
     st.pose.pos.copy(p.pos)
     st.pose.quat.copy(p.quat)
     st.onTT = false
-    st.tire = { u: 0, alpha: 0, rest: 0, lag: 0 }
+    st.tire = { u: 0, alpha: 0, lag: 0, away: 0 }
+    st.bulge = { upper: 0, lower: 0 }
     st.pTire = 0
     st.seat = 1
+    st.bb.sides = 0
+    st.bb.flipped = false
     // braccio orizzontale regolato sul diametro del cerchio
     model.armSlide.position.z = TT_Z - flangeR() - 0.005 - COL_P.z
     dirty = true
@@ -182,6 +269,12 @@ export function createTireChanger(section: Section): Machine {
   }
   const say = (m: string) => { st.msg = m }
   function press(i: number, on: boolean) { st.pedalT[i] = on ? 1 : 0 }
+  /** Pressione breve di un pulsante della pulsantiera. */
+  function* tap(b: 'stallona' | 'ritorno' | 'arresto'): Co {
+    st.btnT[b] = 1
+    yield* wait(0.18)
+    st.btnT[b] = 0
+  }
 
   /** Gira il piatto di un angolo alla velocità di lavoro; during() riceve l'avanzamento 0..1. */
   function* rotate(turns: number, load: number, during?: (k: number) => void): Co {
@@ -206,50 +299,49 @@ export function createTireChanger(section: Section): Machine {
     press(0, false)
   }
 
-  function* moveTool(name: 'rullo' | 'disco' | 'cono', to: THREE.Vector3 | null, s = 0.9): Co {
+  /** Porta un utensile dell'helper sul punto to (o a riposo): prima alza, poi gira e allunga il braccio, poi scende. */
+  function* moveTool(name: Tool, to: THREE.Vector3 | null, s = 0.9): Co {
     const t = model.helper[name]
     const from = { ...st.tools[name] }
-    const goal = to ? model.helperPose(t, to) : { swing: 2.3, reach: 0.4, drop: -0.18 }
+    const goal = to ? model.helperPose(t, to) : PARK
     if (to && name === 'rullo') model.aimRoller(goal.swing, to)
     st.air.add('helper')
     st.joy = to ? 1 : -1
-    // prima gira e allunga il braccio con l'utensile alto, poi scende col cilindro
-    const hold = Math.max(from.drop, -0.18)
+    if (from.drop < HOLD - 1e-3) yield* tween(0.35, (k) => { st.tools[name].drop = lerp(from.drop, HOLD, k) })
     yield* tween(s * 0.6, (k) => {
-      st.tools[name] = { swing: lerp(from.swing, goal.swing, k), reach: lerp(from.reach, goal.reach, k), drop: lerp(from.drop, to ? hold : goal.drop, k) }
+      st.tools[name] = { swing: lerp(from.swing, goal.swing, k), reach: lerp(from.reach, goal.reach, k), drop: HOLD }
     })
-    if (to) yield* tween(s * 0.4, (k) => { st.tools[name].drop = lerp(hold, goal.drop, k) })
+    if (to) yield* tween(s * 0.4, (k) => { st.tools[name].drop = lerp(HOLD, goal.drop, k) })
     st.air.delete('helper')
     st.joy = 0
   }
 
-  /** L'utensile dell'helper preme il fianco: il contatto schiaccia il pneumatico. */
+  /** L'utensile dell'helper preme il fianco e lo segue mentre il pneumatico si muove. */
   function* pushTool(name: 'rullo' | 'disco', depth: number, s = 0.4): Co {
-    const p = target[name]()
+    const t = model.helper[name], v = st.tools[name]
+    const p = { x: t.arm.position.x + Math.cos(v.swing) * v.reach, z: t.arm.position.z - Math.sin(v.swing) * v.reach, depth: 0 }
+    st.press.set(name, p)
     st.air.add('helper')
     st.joy = 1
-    yield* tween(s, (k) => {
-      st.tools[name].drop = model.helperPose(model.helper[name], p).drop - depth * k
-      st.contacts.set(name, { at: p.clone().setY(p.y - depth * k), depth: depth * k })
-    })
+    yield* tween(s, (k) => (p.depth = depth * k))
     st.air.delete('helper')
     st.joy = 0
   }
   function* releaseTool(name: 'rullo' | 'disco'): Co {
-    const c = st.contacts.get(name)
-    const d0 = c?.depth ?? 0
-    yield* tween(0.3, (k) => { if (c) c.depth = d0 * (1 - k) })
-    st.contacts.delete(name)
+    const p = st.press.get(name)
+    const d0 = p?.depth ?? 0
+    yield* tween(0.3, (k) => { if (p) p.depth = d0 * (1 - k) })
+    st.press.delete(name)
     yield* moveTool(name, null, 0.8)
   }
 
   function* column(up: boolean): Co {
-    press(3, true)
+    press(2, true)
     st.air.add('palo')
     const a = st.tilt
     yield* tween(1.0, (k) => (st.tilt = lerp(a, up ? 0 : COL_BACK_TILT, k)))
     st.air.delete('palo')
-    press(3, false)
+    press(2, false)
   }
   function* hexTo(down: boolean): Co {
     if (!down && st.lock > 0) {
@@ -258,89 +350,148 @@ export function createTireChanger(section: Section): Machine {
       st.air.delete('asta')
     }
     const a = st.hex
-    yield* tween(0.8, (k) => (st.hex = lerp(a, down ? 0 : HEX_UP, k)))
+    yield* tween(0.9, (k) => (st.hex = lerp(a, down ? 0 : HEX_UP, k)))
     if (down) {
       st.air.add('asta')
       yield* tween(0.25, (k) => (st.lock = k))
       st.air.delete('asta')
     }
   }
-  function* moveWheel(to: { pos: THREE.Vector3; quat: THREE.Quaternion }, s: number, lift = 0.3): Co {
-    const p0 = st.pose.pos.clone(), q0 = st.pose.quat.clone()
+  function* travel(path: Pose[], s: number): Co {
     yield* tween(s, (k) => {
-      st.pose.pos.lerpVectors(p0, to.pos, k)
-      st.pose.pos.y += Math.sin(Math.PI * k) * lift
-      st.pose.quat.slerpQuaternions(q0, to.quat, k)
+      const p = posePath(path, k)
+      st.pose.pos.copy(p.pos)
+      st.pose.quat.copy(p.quat)
     })
   }
-  function* leverWork(lift: number, alpha: number): Co {
-    const u0 = st.tire.u, a0 = st.tire.alpha
-    yield* tween(0.7, (k) => (st.leverK = k))
-    yield* tween(0.6, (k) => {
+  /** Leva: presa dal piano, infilata accanto all'utensile, leva, e di nuovo sul piano. */
+  function* leverWork(which: 'upper' | 'lower', during: (k: number) => void): Co {
+    st.leverSet = which
+    yield* tween(1.3, (k) => (st.leverK = k))
+    yield* tween(0.8, (k) => {
       st.leverK = 1 + k
-      st.tire.u = lerp(u0, lift, k)
-      st.tire.alpha = lerp(a0, alpha, k)
+      during(k)
     })
-    yield* tween(0.6, (k) => (st.leverK = 2 * (1 - k)))
+    yield* tween(1.3, (k) => (st.leverK = 2 * (1 - k)))
+  }
+
+  // ---------- stallonatore: comando automatico dalla pulsantiera ----------
+
+  const bbActive = () => st.bb.mode === 'avvicinamento' || st.bb.mode === 'spinta' || st.bb.mode === 'distacco' || st.bb.mode === 'ritorno'
+  function coils(a: boolean, b: boolean) {
+    st.bb.a = a
+    st.bb.b = b
+    for (const k of ['bb', 'bb-spinta', 'bb-ritorno']) st.air.delete(k)
+    if (a || b) st.air.add('bb')
+    if (a) st.air.add('bb-spinta')
+    if (b) st.air.add('bb-ritorno')
+  }
+
+  /** STALLONA: avvicinamento, spinta fino al distacco del tallone, ritorno. */
+  function* bbCycle(inner: boolean): Co {
+    yield* tap('stallona')
+    coils(true, false)
+    st.bb.mode = 'avvicinamento'
+    say('STALLONA: la bobina di spinta apre l\'elettrovalvola, il braccio avvicina la lama al fianco')
+    const p0 = st.bbPhi, pc = phiContact(), b0 = st.pBead
+    // a vuoto il cilindro incontra solo gli attriti: velocità della lama limitata dallo scarico, circa 0,25 m/s
+    yield* tween(Math.max(0.3, (Math.abs(p0 - pc) * RE) / 0.25), (k) => {
+      st.bbPhi = lerp(p0, pc, k)
+      st.pBead = lerp(b0, 0.4, k)
+    })
+    st.bb.mode = 'spinta'
+    say(`Lama sul fianco ${inner ? 'interno' : 'esterno'}, vicino al cerchio: la pressione nel cilindro sale`)
+    const k = tire.breakForce / tire.breakTravel
+    while (st.bladeForce < tire.breakForce) {
+      const dt: number = yield
+      st.pBead += ((SPEC.linePressure - st.pBead) * dt) / SPEC.cylTau
+      const fc = st.pBead * BAR * area(SPEC.beadCylBore)
+      st.bladeForce = Math.min(fc * leverRatio(st.bbPhi), tire.breakForce)
+      st.bladeTravel = Math.min(st.bladeForce / k, tire.breakTravel)
+      st.bbPhi = phiForX(sideX() - st.bladeTravel)
+    }
+    st.bb.mode = 'distacco'
+    say(`Il tallone si stacca dalla sede a ${num(st.bladeForce / 1000)} kN: la lama scatta in avanti e la centralina comanda il ritorno`)
+    const t0 = st.bladeTravel
+    yield* tween(0.18, (q) => {
+      st.bladeTravel = t0 + 0.02 * q
+      st.bladeForce = lerp(tire.breakForce, tire.breakForce * 0.15, q)
+      st.bbPhi = phiForX(sideX() - st.bladeTravel)
+    })
+    yield* wait(0.35)
+    yield* bbReturn()
+  }
+
+  /** Ritorno: bobina di ritorno, aria nella camera lato stelo, braccio in apertura. */
+  function* bbReturn(): Co {
+    coils(false, true)
+    st.bb.mode = 'ritorno'
+    say('Ritorno: la seconda bobina manda l\'aria nella camera lato stelo, la lama si allontana')
+    const pb = st.pBead, f0 = st.bladeForce, tr = st.bladeTravel, ph = st.bbPhi
+    yield* tween(0.9, (q) => {
+      st.pBead = pb * (1 - q)
+      st.bladeForce = f0 * (1 - q)
+      st.bladeTravel = tr * (1 - q)
+      st.bbPhi = lerp(ph, phiOpen(), q)
+    })
+    st.bladeTravel = 0
+    coils(false, false)
+    st.bb.mode = 'riposo'
+  }
+
+  /** ARRESTO: bobine diseccitate, elettrovalvola al centro con le camere in scarico. */
+  function* bbStop(): Co {
+    coils(false, false)
+    st.bb.mode = 'arresto'
+    say('ARRESTO: bobine senza corrente, l\'elettrovalvola scarica il cilindro e il braccio si ferma')
+    const pb = st.pBead, f0 = st.bladeForce, tr = st.bladeTravel
+    yield* tap('arresto')
+    yield* tween(0.6, (q) => {
+      st.pBead = pb * (1 - q)
+      st.bladeForce = f0 * (1 - q)
+      // il fianco si rilassa e riporta indietro la lama
+      st.bladeTravel = tr * (1 - q)
+      if (tr > 0) st.bbPhi = phiForX(sideX() - st.bladeTravel)
+    })
+    st.bb.mode = 'fermo'
+    say('Stallonatore fermo: RITORNO riporta indietro il braccio, STALLONA riprende')
+  }
+  function* bbManualReturn(): Co {
+    yield* tap('ritorno')
+    yield* bbReturn()
+    say('Braccio dello stallonatore aperto')
   }
 
   // ---------- passi ----------
 
-  function* stallona(): Co {
-    for (const inner of [false, true]) {
-      if (inner) {
-        say('Si gira la ruota per stallonare l\'altro fianco')
-        yield* moveWheel(poseBB(true), 1.3, 0.15)
+  /** Stallonatura di un fianco (one) o di quelli che mancano. */
+  function* stallona(one = false): Co {
+    while (st.bb.sides < 2) {
+      const inner = st.bb.sides === 1
+      if (inner && !st.bb.flipped) {
+        say('Si stacca la ruota dai tamponi, la si gira e si riappoggia per l\'altro fianco')
+        yield* travel(flipPath(false), 3.2)
+        st.bb.flipped = true
       }
-      say(`Paletta contro il fianco ${inner ? 'interno' : 'esterno'}, vicino al cerchio`)
-      const p0 = st.bbPhi
-      yield* tween(0.8, (k) => (st.bbPhi = lerp(p0, phiContact(), k)))
-      say('Pedale dello stallonatore: la pressione nel cilindro sale')
-      press(2, true)
-      st.air.add('stallonatore')
-      const k = tire.breakForce / tire.breakTravel
-      let popped = false
-      while (!popped) {
-        const dt: number = yield
-        st.pBead += ((SPEC.linePressure - st.pBead) * dt) / SPEC.cylTau
-        const fc = st.pBead * BAR * area(SPEC.beadCylBore)
-        st.bladeForce = fc * leverRatio(st.bbPhi)
-        st.bladeTravel = Math.min(st.bladeForce / k, tire.breakTravel)
-        if (st.bladeForce >= tire.breakForce) popped = true
-        st.bbPhi = phiForX(sideX() - st.bladeTravel)
-      }
-      say(`Il tallone si stacca dalla sede a ${num(st.bladeForce / 1000)} kN e scivola verso il canale`)
-      const t0 = st.bladeTravel
-      yield* tween(0.18, (q) => {
-        st.bladeTravel = t0 + 0.02 * q
-        st.bladeForce = lerp(tire.breakForce, tire.breakForce * 0.15, q)
-        st.bbPhi = phiForX(sideX() - st.bladeTravel)
-      })
-      yield* wait(0.5)
-      press(2, false)
-      st.air.delete('stallonatore')
-      const pb = st.pBead, f0 = st.bladeForce, tr = st.bladeTravel, ph = st.bbPhi
-      yield* tween(0.7, (q) => {
-        st.pBead = pb * (1 - q)
-        st.bladeForce = f0 * (1 - q)
-        st.bladeTravel = tr * (1 - q)
-        st.bbPhi = lerp(ph, phiOpen(), q)
-      })
-      st.bladeTravel = 0
+      yield* bbCycle(inner)
+      st.bb.sides++
+      if (one) break
     }
-    st.fase = 'stallonata'
-    say('Talloni staccati su entrambi i lati: ora la ruota va sul piatto')
+    if (st.bb.sides >= 2) {
+      st.fase = 'stallonata'
+      say('Talloni staccati su entrambi i lati: ora la ruota va sul piatto')
+    } else say('Primo fianco stallonato: STALLONA di nuovo per girare la ruota e fare l\'altro')
   }
 
   function* blocca(): Co {
-    say('Griffe aperte, la ruota si appoggia sul piatto')
+    say('Griffe aperte, la ruota si sposta davanti, si alza e si sdraia sul piatto')
     press(1, true)
     st.air.add('griffe')
     const j0 = st.jawR
-    yield* tween(0.4, (k) => (st.jawR = lerp(j0, Math.min(flangeR() + 0.05, 0.275), k)))
+    yield* tween(0.4, (k) => (st.jawR = lerp(j0, jawOpen(), k)))
     st.air.delete('griffe')
     press(1, false)
-    yield* moveWheel(poseTT(), 1.8, 0.35)
+    yield* travel(toTTPath({ pos: st.pose.pos.clone(), quat: st.pose.quat.clone() }), 3.6)
     st.onTT = true
     if (useHelper) {
       say('Il cono di centraggio scende sul mozzo e tiene il cerchio contro il piatto')
@@ -362,9 +513,8 @@ export function createTireChanger(section: Section): Machine {
   }
 
   function* smonta(): Co {
-    say('Il palo torna in verticale, l\'asta scende e si blocca')
+    say('Il palo torna in verticale con l\'asta alzata')
     yield* column(true)
-    yield* hexTo(true)
     if (useHelper) {
       say('Helper: il disco premitallone completa lo stallonamento dall\'alto mentre il piatto gira')
       yield* moveTool('disco', target.disco())
@@ -375,17 +525,23 @@ export function createTireChanger(section: Section): Machine {
       yield* moveTool('rullo', target.rullo())
       yield* pushTool('rullo', 0.035)
     }
-    say('Con la leva il tallone superiore sale sopra la lingua dell\'utensile')
-    yield* leverWork(0.03, -0.1)
-    say('Il piatto gira: il tallone superiore scivola fuori dal cerchio')
+    say('Con la leva il tallone superiore esce sopra la balconata, dietro')
+    yield* leverWork('upper', (k) => (st.bulge.upper = k))
+    say('L\'asta scende: la testina entra tra tallone e cerchio e si blocca')
+    yield* hexTo(true)
+    say('Il piatto gira: il tallone superiore scivola sulla testina e fuori dal cerchio')
     yield* rotate(1.15, SPEC.peelTorque, (k) => {
-      st.tire.u = lerp(0.03, 0.065, k)
-      st.tire.alpha = lerp(-0.1, -0.22, k)
+      st.tire.u = lerp(0, 0.065, k)
+      st.tire.alpha = lerp(0, -0.22, k)
       st.tire.lag = -0.15 * Math.sin(Math.PI * k)
     })
     if (useHelper) yield* releaseTool('rullo')
-    say('Tallone inferiore: la leva lo porta sopra l\'utensile, poi un altro giro')
-    yield* leverWork(0.09, -0.24)
+    say('Tallone inferiore: la leva lo porta oltre la testina, poi un altro giro')
+    yield* leverWork('lower', (k) => {
+      st.bulge.lower = k
+      st.tire.u = lerp(0.065, 0.09, k)
+      st.tire.alpha = lerp(-0.22, -0.24, k)
+    })
     const u1 = geo.width + 0.05
     yield* rotate(1, SPEC.peelTorque * 0.8, (k) => {
       st.tire.u = lerp(0.09, u1, k)
@@ -393,22 +549,26 @@ export function createTireChanger(section: Section): Machine {
     })
     say('L\'asta si sblocca e si alza, il pneumatico viene tolto')
     yield* hexTo(false)
-    yield* tween(1.4, (k) => (st.tire.rest = k))
+    yield* tween(0.4, (k) => { st.bulge.upper = st.bulge.lower = 1 - k })
+    yield* tween(2.2, (k) => (st.tire.away = k))
     st.fase = 'smontata'
     say('Pneumatico smontato: il cerchio è libero sul piatto')
   }
 
   function* monta(): Co {
     const u1 = geo.width + 0.05
-    say('Il pneumatico torna sopra il cerchio, inclinato verso l\'utensile')
+    say('Il pneumatico torna sopra il cerchio')
     st.tire.u = u1
-    st.tire.alpha = -0.22
-    yield* tween(1.4, (k) => (st.tire.rest = 1 - k))
+    st.tire.alpha = 0
+    yield* tween(2.2, (k) => (st.tire.away = 1 - k))
+    say('Il tallone inferiore si allarga dietro, sotto l\'utensile: l\'asta scende e si blocca')
+    yield* tween(0.5, (k) => { st.bulge.upper = st.bulge.lower = k })
     yield* hexTo(true)
-    say('Tallone inferiore: girando il piatto scorre sotto la lingua ed entra nel cerchio')
+    say('Tallone inferiore: girando il piatto scorre sotto la testina ed entra nel cerchio')
     yield* rotate(1, SPEC.peelTorque * 0.6, (k) => {
       st.tire.u = lerp(u1, 0.06, k)
-      st.tire.alpha = lerp(-0.22, -0.15, k)
+      st.tire.alpha = lerp(0, -0.15, k)
+      st.bulge.lower = 1 - THREE.MathUtils.smoothstep(k, 0.6, 1)
     })
     if (useHelper) {
       say('Helper: rullo e disco tengono il tallone superiore nel canale mentre il piatto gira')
@@ -428,8 +588,9 @@ export function createTireChanger(section: Section): Machine {
       yield* releaseTool('rullo')
     }
     st.seat = 0
-    say('Talloni dentro il cerchio: asta su, palo indietro')
+    say('Talloni dentro il cerchio: asta su, l\'ultimo tratto di tallone scende nel canale, palo indietro')
     yield* hexTo(false)
+    yield* tween(0.4, (k) => (st.bulge.upper = 1 - k))
     yield* column(false)
     st.fase = 'montata'
     say('Pneumatico montato, talloni ancora nel canale: si gonfia')
@@ -442,7 +603,7 @@ export function createTireChanger(section: Section): Machine {
     if (d < 0) d += Math.PI * 2
     say('Il piatto porta la valvola verso il gruppo di gonfiaggio')
     yield* rotate(d / (Math.PI * 2), 20)
-    model.setHose(model.valveWorld())
+    model.setHose(model.valveWorld(), ttCenterY() + geo.tireW / 2)
     say('Attacco sulla valvola: l\'aria entra e la pressione sale')
     st.air.add('gonfiaggio')
     while (st.pTire < SPEC.workPressure) {
@@ -473,29 +634,91 @@ export function createTireChanger(section: Section): Machine {
       st.air.add('griffe')
       const j0 = st.jawR
       yield* tween(0.5, (k) => {
-        st.jawR = lerp(j0, Math.min(flangeR() + 0.05, 0.275), k)
+        st.jawR = lerp(j0, jawOpen(), k)
         st.pJaw = SPEC.linePressure * (1 - k)
       })
       st.air.delete('griffe')
       press(1, false)
       st.onTT = false
-      yield* moveWheel(poseBB(false), 1.6, 0.35)
+      yield* travel(toTTPath(poseBB(false)).reverse(), 3.6)
     }
     st.seat = 1
+    st.bb.sides = 0
+    st.bb.flipped = false
     st.fase = 'pronta'
     say('Ruota sgonfia appoggiata ai tamponi: inizia dalla stallonatura')
   }
 
-  const RUN: Record<string, () => Co> = { stallona, blocca, smonta, monta, gonfia }
+  /** Ogni passo annota il suo nome per il controllo di compenetrazione. */
+  function* named(id: string, co: () => Co): Co {
+    stepId = id
+    yield* co()
+  }
+  const RUN: Record<string, () => Co> = {
+    stallona: () => named('stallona', () => stallona()),
+    blocca: () => named('blocca', blocca),
+    smonta: () => named('smonta', smonta),
+    monta: () => named('monta', monta),
+    gonfia: () => named('gonfia', gonfia),
+    nuovo: () => named('nuovo', nuovo),
+  }
   function* ciclo(): Co {
-    if (st.fase === 'gonfia') yield* nuovo()
+    if (st.fase === 'gonfia') yield* RUN.nuovo()
     for (const s of STEPS) if (st.fase === s.from) yield* RUN[s.id]()
   }
   const start = (co: Co) => { if (!job && model.exploded < 0.01) { job = co; job.next(0) } }
+  /** Sostituisce il lavoro in corso (RITORNO e ARRESTO interrompono lo stallonatore). */
+  const replace = (co: Co) => { job = co; job.next(0) }
+
+  /** Pulsanti della pulsantiera. */
+  function button(b: 'stallona' | 'ritorno' | 'arresto') {
+    if (model.exploded > 0.01) return
+    if (b === 'stallona') {
+      if (!job && st.fase === 'pronta') start(named('stallona', () => stallona(true)))
+    } else if (b === 'ritorno') {
+      if (job && bbActive() && st.bb.mode !== 'ritorno') replace(named('stallona', bbManualReturn))
+      else if (!job && st.bbPhi < phiOpen() - 1e-3) start(named('stallona', bbManualReturn))
+    } else if (job && bbActive()) replace(named('stallona', bbStop))
+  }
 
   // ---------- applicazione dello stato al modello ----------
 
   const tmpQ = new THREE.Quaternion()
+  const PB_X = model.buttons.stallona.position.x
+  /** Leva: a riposo sul piano davanti, presa e alzata, portata sopra l'utensile, infilata e premuta. */
+  function leverPose(): Pose {
+    const rest = pose(-0.13, 0.745, 0.345, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2))
+    const upper = st.leverSet === 'upper'
+    const tip = upper ? new THREE.Vector3(0.07, flangeTopY() + 0.02, TT_Z - flangeR() + 0.014) : new THREE.Vector3(0.07, flangeTopY() + 0.01, TT_Z - geo.rimR + 0.01)
+    const dIns = upper ? new THREE.Vector3(0.15, 0.85, -0.5) : new THREE.Vector3(0.1, 0.95, -0.25)
+    const dPrs = upper ? new THREE.Vector3(0.15, 0.45, -0.88) : new THREE.Vector3(0.1, 0.95, -0.3)
+    const qi = new THREE.Quaternion().setFromUnitVectors(Y, dIns.normalize())
+    if (st.leverK > 1) {
+      const k = st.leverK - 1
+      return { pos: tip.clone().add(new THREE.Vector3(0, 0.02 * k, 0)), quat: qi.clone().slerp(new THREE.Quaternion().setFromUnitVectors(Y, dPrs.normalize()), k) }
+    }
+    const lift = 0.45
+    return posePath([rest, pose(rest.pos.x, rest.pos.y + lift, rest.pos.z, qi), pose(tip.x, tip.y + lift, tip.z, qi), { pos: tip, quat: qi }], st.leverK)
+  }
+
+  /** Griffe sotto il fianco inferiore: quanto labbro e corpo schiacciano il pneumatico appoggiato. */
+  function jawPresses(): Press[] {
+    if (st.tire.away > 0 || (!st.onTT && st.pose.pos.distanceTo(poseTT().pos) > 0.3)) return []
+    const out: Press[] = []
+    const pts = [new THREE.Vector3(JAW_LIP, TT_Y + JAW_TOP, 0), new THREE.Vector3(0, TT_Y + JAW_TOP, 0), new THREE.Vector3(JAW_LIP / 2, TT_Y + JAW_TOP, 0), new THREE.Vector3(0.05, TT_Y + 0.015, 0), new THREE.Vector3(0.035, TT_Y + 0.015, 0), new THREE.Vector3(0.02, TT_Y + 0.015, 0)]
+    for (const j of model.jaws) {
+      let depth = 0
+      for (const p of pts)
+        for (const dz of [-0.02, -0.01, 0, 0.01, 0.02]) {
+          const l = model.tireLocal(j.localToWorld(p.clone().setZ(dz)))
+          if (l.r < geo.rimR || l.r > geo.tireR) continue
+          depth = Math.max(depth, l.x + tireHalfWidth(spec, l.r))
+        }
+      if (depth > 0) out.push({ at: j.localToWorld(pts[0].clone()), depth: Math.min(depth, 0.05) + 0.003, reach: 0.045, half: 0.03 })
+    }
+    return out
+  }
+
   function apply() {
     model.col.rotation.x = st.tilt
     model.hexSlide.position.y = flangeTopY() + 0.003 - COL_P.y - 1.0 + st.hex
@@ -511,16 +734,13 @@ export function createTireChanger(section: Section): Machine {
     model.motorSpin.rotation.x = st.worm * SPEC.beltRatio
     st.pedal.forEach((p, i) => (model.pedals[i].rotation.x = p * 0.22))
     model.joystick.rotation.x = st.joy * 0.35
+    for (const b of ['stallona', 'ritorno', 'arresto'] as const) model.buttons[b].position.x = PB_X - st.btn[b] * 0.006
+    model.coils.a.emissiveIntensity = st.bb.a ? 0.9 : 0
+    model.coils.b.emissiveIntensity = st.bb.b ? 0.9 : 0
 
-    // leva: riposo sul piano, poi infilata accanto all'utensile, poi premuta
-    const rest = { p: new THREE.Vector3(-0.3, 0.745, 0.12), q: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2) }
-    const tip = new THREE.Vector3(0.07, flangeTopY() - 0.004, TT_Z - flangeR() + 0.014)
-    const ins = { p: tip, q: new THREE.Quaternion().setFromUnitVectors(Y, new THREE.Vector3(0.15, 0.75, -0.65).normalize()) }
-    const prs = { p: tip.clone().add(new THREE.Vector3(0, 0.02, 0)), q: new THREE.Quaternion().setFromUnitVectors(Y, new THREE.Vector3(0.15, 0.28, -0.95).normalize()) }
-    const [a, b, k] = st.leverK <= 1 ? [rest, ins, st.leverK] : [ins, prs, st.leverK - 1]
-    model.lever.position.lerpVectors(a.p, b.p, k)
-    if (st.leverK > 0 && st.leverK < 1) model.lever.position.y += Math.sin(Math.PI * k) * 0.15
-    model.lever.quaternion.slerpQuaternions(a.q, b.q, k)
+    const lp = leverPose()
+    model.lever.position.copy(lp.pos)
+    model.lever.quaternion.copy(lp.quat)
 
     // ruota e pneumatico
     model.wheelPose.position.copy(st.pose.pos)
@@ -528,18 +748,21 @@ export function createTireChanger(section: Section): Machine {
     model.rimSpin.rotation.x = st.wheelSpin
     const hp = st.pose.pos.clone().add(new THREE.Vector3(st.tire.u, 0, 0).applyQuaternion(st.pose.quat))
     const hq = st.pose.quat.clone().multiply(tmpQ.setFromAxisAngle(Y, st.tire.alpha))
-    if (st.tire.rest > 0) {
-      const r = restPose()
-      hp.lerp(r.pos, st.tire.rest)
-      hp.y += Math.sin(Math.PI * st.tire.rest) * 0.3
-      hq.slerp(r.quat, st.tire.rest)
+    if (st.tire.away > 0) {
+      const p = posePath(awayPath({ pos: hp, quat: hq }), st.tire.away)
+      hp.copy(p.pos)
+      hq.copy(p.quat)
     }
     model.tireHolder.position.copy(hp)
     model.tireHolder.quaternion.copy(hq)
     model.tireSpin.rotation.x = st.wheelSpin + st.tire.lag
     model.setSeat(st.seat)
 
-    // helper
+    // helper: gli utensili che premono seguono il fianco
+    for (const [name, p] of st.press) {
+      const t = model.helper[name]
+      st.tools[name].drop = model.surfaceMax(p.x, p.z, FOOT[name]) - p.depth - t.y + t.ext
+    }
     for (const name of ['rullo', 'disco', 'cono'] as const) {
       const t: HelperTool = model.helper[name], v = st.tools[name]
       t.arm.rotation.y = v.swing
@@ -554,9 +777,48 @@ export function createTireChanger(section: Section): Machine {
     model.updateRams()
   }
 
+  /** Contatti che deformano il pneumatico in questo istante. */
+  function presses(): Press[] {
+    const out: Press[] = []
+    if (st.bladeTravel > 0) {
+      const e = model.bb.localToWorld(BLADE.clone())
+      out.push({ at: new THREE.Vector3(sideX(), e.y, e.z), depth: st.bladeTravel, reach: 0.012, half: BLADE_HALF })
+    }
+    for (const [name, p] of st.press) {
+      if (p.depth <= 0) continue
+      // il fianco cede un poco più della corsa dell'utensile: resta a contatto senza entrarci
+      out.push({ at: new THREE.Vector3(p.x, model.surfaceY(p.x, p.z) - p.depth, p.z), depth: p.depth + 0.003, reach: FOOT[name] + 0.01, half: FOOT[name] + 0.01 })
+    }
+    out.push(...jawPresses())
+    return out
+  }
+
+  // ---------- controllo di compenetrazione ----------
+
+  const checker = new InterferenceCheck(model.root, (o) => model.isWheelOrMarker(o))
+  const clashes: Clash[] = []
+  const seen = new Map<string, Clash>()
+  let frame = 0, checkEvery = CHECK_EVERY
+  /** Segnala in console i pezzi che entrano nella ruota, una volta per passo e coppia di pezzi. */
+  function checkClash() {
+    for (const h of checker.run(model.wheelSolids(), () => CLASH_TOL)) {
+      const key = spec.id + '|' + stepId + '|' + h.part + '|' + h.solid
+      const prev = seen.get(key)
+      if (prev) {
+        if (h.depth > prev.depth) Object.assign(prev, { depth: h.depth, at: h.at, msg: st.msg })
+        continue
+      }
+      const c: Clash = { ...h, wheel: spec.label, step: stepId, msg: st.msg }
+      seen.set(key, c)
+      clashes.push(c)
+      console.warn(`[compenetrazione] ${spec.label} · passo "${stepId}" · ${PARTS[h.part]?.name ?? h.part} dentro ${h.solid} di ${num(h.depth * 1000, 1)} mm · ${st.msg}`)
+    }
+  }
+
   // ---------- pannello ----------
 
   const faseLabel: Record<Fase, string> = { pronta: 'PRONTA', stallonata: 'STALLONATA', bloccata: 'BLOCCATA', smontata: 'SMONTATA', montata: 'MONTATA', gonfia: 'GONFIA' }
+  const bbLabel: Record<BBMode, string> = { riposo: 'a riposo', avvicinamento: 'avvicinamento', spinta: 'spinta', distacco: 'distacco del tallone', ritorno: 'ritorno', arresto: 'arresto', fermo: 'fermo dopo l\'arresto' }
 
   return {
     id: 'smontagomme',
@@ -565,10 +827,19 @@ export function createTireChanger(section: Section): Machine {
     workTab: 'Lavoro',
     model,
     parts: PARTS,
-    order: ['pneumatico', 'cerchio', 'piatto', 'griffe', 'cilindri-griffe', 'palo', 'cilindro-palo', 'braccio', 'asta', 'bloccaggio', 'utensile', 'leva', 'stallonatore', 'cilindro-stallonatore', 'tamponi', 'helper', 'helper-rullo', 'helper-disco', 'helper-cono', 'helper-cilindri', 'helper-comando', 'pedaliera', 'valvole', 'frl', 'gonfiaggio', 'riduttore', 'cinghia', 'motore', 'mobile'],
+    order: ['pneumatico', 'cerchio', 'piatto', 'griffe', 'cilindri-griffe', 'palo', 'cilindro-palo', 'braccio', 'asta', 'bloccaggio', 'utensile', 'leva', 'stallonatore', 'paletta', 'cilindro-stallonatore', 'pulsantiera', 'elettrovalvola', 'tamponi', 'helper', 'helper-rullo', 'helper-disco', 'helper-cono', 'helper-cilindri', 'helper-comando', 'pedaliera', 'valvole', 'frl', 'gonfiaggio', 'riduttore', 'cinghia', 'motore', 'mobile'],
     view: { target: [0.0, 0.72, 0.0], halfWidth: 1.15 },
     physicsText: TEXT,
     get busy() { return job !== null },
+
+    test: {
+      setWheel(id) { setWheel(WHEELS.find((w) => w.id === id)!) },
+      setHelper(on) { useHelper = on },
+      checkEveryFrame() { checkEvery = 1 },
+      run(id) { start(id === 'ciclo' ? ciclo() : RUN[id]()) },
+      button,
+      clashes,
+    },
 
     mount(pane) {
       pane.innerHTML = PANE
@@ -578,7 +849,7 @@ export function createTireChanger(section: Section): Machine {
       for (const w of WHEELS) sel.append(new Option(w.label + (w.aspect <= 45 ? ' · ribassato' : ''), w.id))
       sel.value = spec.id
       sel.addEventListener('change', () => {
-        if (job || st.fase !== 'pronta') { sel.value = spec.id; return }
+        if (job || st.fase !== 'pronta' || st.bb.sides > 0) { sel.value = spec.id; return }
         setWheel(WHEELS.find((w) => w.id === sel.value)!)
       })
       const hc = el.helper as HTMLInputElement
@@ -586,7 +857,8 @@ export function createTireChanger(section: Section): Machine {
       hc.addEventListener('change', () => (useHelper = hc.checked))
       pane.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) => b.addEventListener('click', () => start(RUN[b.dataset.step!]())))
       el.ciclo.addEventListener('click', () => start(ciclo()))
-      el.nuovo.addEventListener('click', () => start(nuovo()))
+      el.nuovo.addEventListener('click', () => start(RUN.nuovo()))
+      for (const b of ['stallona', 'ritorno', 'arresto'] as const) el['b-' + b].addEventListener('click', () => button(b))
     },
 
     update(dt, _now, flows) {
@@ -595,37 +867,41 @@ export function createTireChanger(section: Section): Machine {
         moving = true
         if (job.next(dt).done) job = null
       }
-      // pedali e motore
-      for (let i = 0; i < 4; i++) {
+      // pedali, pulsanti e motore
+      for (let i = 0; i < st.pedal.length; i++) {
         const d = st.pedalT[i] - st.pedal[i]
         if (Math.abs(d) > 1e-3) { st.pedal[i] += d * Math.min(1, dt * 12); moving = true }
+      }
+      for (const b of ['stallona', 'ritorno', 'arresto'] as const) {
+        const d = st.btnT[b] - st.btn[b]
+        if (Math.abs(d) > 1e-3) { st.btn[b] += d * Math.min(1, dt * 20); moving = true }
       }
       if (st.ttOmega > 0) {
         st.worm += st.ttOmega * SPEC.wormTeeth * dt
         model.beltMap.offset.x -= ((st.ttOmega * SPEC.wormTeeth * 0.034 * dt) / model.beltLen) * model.beltMap.repeat.x
       }
-      // pneumatico schiacciato da paletta e utensili dell'helper
-      const contacts = [...st.contacts.values()]
-      if (st.bladeTravel > 0) {
-        const z = BB_P.z + ARM_L * Math.cos(st.bbPhi)
-        contacts.push({ at: new THREE.Vector3(sideX(), BLADE_Y, z), depth: st.bladeTravel })
+      if (moving || dirty) {
+        apply()
+        // pneumatico schiacciato da lama, utensili dell'helper e griffe; talloni allargati attorno alla testina
+        model.deform(presses(), { at: model.head.getWorldPosition(new THREE.Vector3()), ...st.bulge })
       }
-      if (moving || contacts.length) model.dent(contacts)
+      // nel browser il controllo gira un fotogramma ogni CHECK_EVERY; la verifica automatica li controlla tutti
+      if (job && ++frame % checkEvery === 0) checkClash()
 
-      // flussi: aria nei tubi, forza sulla paletta
+      // flussi: aria nei tubi, segnali nei cavi, forza sulla lama
       airPhase += dt * 0.9
       model.air(flows ? st.air : new Set(), airPhase)
+      model.signals(flows && st.bb.a, flows && st.bb.b, airPhase)
       const showF = flows && st.bladeForce > 50
       model.bladeArrow.visible = showF
       if (showF) {
-        const z = BB_P.z + ARM_L * Math.cos(st.bbPhi)
-        // la freccia finisce sulla paletta: lunghezza proporzionale alla forza
+        const e = model.bb.localToWorld(BLADE.clone())
+        // la freccia arriva alla lama da fuori: lunghezza proporzionale alla forza
         const len = 0.06 + (st.bladeForce / 10000) * 0.2
-        model.bladeArrow.position.set(bladeX(st.bbPhi) + 0.03 + len, BLADE_Y + 0.06, z)
+        model.bladeArrow.position.set(bladeX(st.bbPhi) + 0.13 + len, e.y + 0.11, e.z)
         model.bladeArrow.setLength(len, 0.05, 0.035)
       }
-      if (moving || dirty) apply()
-      const redraw = moving || dirty || (flows && st.air.size > 0)
+      const redraw = moving || dirty || (flows && (st.air.size > 0 || st.bb.a || st.bb.b))
       dirty = false
       return redraw
     },
@@ -647,7 +923,10 @@ export function createTireChanger(section: Section): Machine {
         ciclo.disabled = !!job || apart
         ciclo.textContent = apart ? 'Rimonta per lavorare' : '▶ Ciclo completo'
         ;(el.nuovo as HTMLButtonElement).disabled = !!job || apart || st.fase === 'pronta'
-        ;(el.ruota as HTMLSelectElement).disabled = !!job || st.fase !== 'pronta'
+        ;(el.ruota as HTMLSelectElement).disabled = !!job || st.fase !== 'pronta' || st.bb.sides > 0
+        ;(el['b-stallona'] as HTMLButtonElement).disabled = !!job || apart || st.fase !== 'pronta'
+        ;(el['b-ritorno'] as HTMLButtonElement).disabled = apart || (job ? !bbActive() || st.bb.mode === 'ritorno' : st.bbPhi >= phiOpen() - 1e-3)
+        ;(el['b-arresto'] as HTMLButtonElement).disabled = apart || !job || !bbActive()
       }
       return { status: faseLabel[st.fase], detail: `${num(st.pTire, 2)} bar` }
     },
@@ -655,11 +934,15 @@ export function createTireChanger(section: Section): Machine {
     physics() {
       const fc = st.pBead * BAR * area(SPEC.beadCylBore)
       const tt = turntableTorque()
+      const ev = st.bb.a ? 'bobina di spinta eccitata' : st.bb.b ? 'bobina di ritorno eccitata' : 'al centro, camere in scarico'
       const rows: [string, string][] = [
         ['Pressione di linea', `${SPEC.linePressure} bar ${IND}`],
+        ['Stallonatore', bbLabel[st.bb.mode]],
+        ['Elettrovalvola 5/3', ev],
+        ['Tensione delle bobine', `${st.bb.a || st.bb.b ? 24 : 0} V c.c. ${IND}`],
         ['Cilindro stallonatore', `${num(st.pBead, 1)} bar · ${num(fc / 1000)} kN`],
         ['Rapporto di leva', `${num(leverRatio(st.bbPhi), 2)}`],
-        ['Forza sulla paletta', `${num(st.bladeForce / 1000)} kN`],
+        ['Forza sulla lama', `${num(st.bladeForce / 1000)} kN`],
         ['Tenuta del tallone', `${num(tire.breakForce / 1000)} kN ${IND}`],
         ['Schiacciamento fianco', `${num(st.bladeTravel * 1000, 0)} mm`],
         ['Serraggio per griffa', `${num(jawForce(st.pJaw) / 1000, 2)} kN`],
@@ -672,6 +955,7 @@ export function createTireChanger(section: Section): Machine {
         ['Portata d\'aria', `${num(st.flow * 1000, 1)} L/s ${IND}`],
         ['Pressione di tallonamento', `${num(tire.seatPressure, 1)} bar ${IND}`],
         ['Limite di sicurezza', `${num(SPEC.safetyLimit, 1)} bar ${IND}`],
+        ['Compenetrazioni con la ruota', `${clashes.length}`],
       ]
       return rows
     },

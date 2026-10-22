@@ -4,7 +4,7 @@ import type { PartInfo } from '../core/machine'
 export const PARTS: Record<string, PartInfo> = {
   mobile: {
     name: 'Mobile',
-    text: 'Carrozzeria in lamiera che contiene motore, riduttore, cilindri e valvole. Sul piano superiore gira il piatto; sul fianco destro sono montati lo stallonatore e i tamponi.',
+    text: 'Carrozzeria in lamiera che contiene motore, riduttore, cilindri e valvole. Sul piano superiore gira il piatto; sul fianco destro sono montati lo stallonatore, la sua pulsantiera e i tamponi.',
     data: [{ k: 'Ingombro mobile (L×P×H)', v: '760 × 780 × 725 mm', indicativo: true }],
   },
   piatto: {
@@ -71,13 +71,39 @@ export const PARTS: Record<string, PartInfo> = {
     text: 'Si infila tra cerchio e tallone, facendo leva sull\'utensile, per portare il tallone sopra la lingua prima di far girare il piatto.',
   },
   stallonatore: {
-    name: 'Stallonatore',
-    text: 'Braccio con la paletta che spinge il fianco del pneumatico verso il centro, finché il tallone si stacca dalla sede del cerchio. Si fa su entrambi i lati, girando la ruota.',
+    name: 'Braccio dello stallonatore',
+    text: 'Braccio a gomito che gira su un perno verticale sul fianco del mobile. Il primo tratto esce dal fianco dietro la ruota, il secondo corre in avanti fuori dal pneumatico e porta la lama: così nessuna parte del braccio attraversa la ruota, in tutte le misure, e solo la lama tocca il fianco. Si stallona su entrambi i lati, girando la ruota.',
+    data: [
+      { k: 'Tratto verso l\'esterno', v: '300 mm', indicativo: true },
+      { k: 'Tratto in avanti', v: '680 mm', indicativo: true },
+    ],
+  },
+  paletta: {
+    name: 'Lama dello stallonatore',
+    text: 'Lama sagomata in lamiera d\'acciaio, montata in fondo al braccio su un supporto. Il bordo di spinta è curvo e segue il fianco del pneumatico vicino alla balconata, come un arco concentrico al cerchio: preme su un tratto lungo del tallone senza toccare il cerchio. Il bordo è arrotondato per non tagliare la gomma.',
+    data: [
+      { k: 'Raggio del bordo di spinta', v: '250 mm', indicativo: true },
+      { k: 'Altezza della lama', v: '170 mm', indicativo: true },
+      { k: 'Distanza dalla sede del tallone', v: '45 mm', indicativo: true },
+    ],
   },
   'cilindro-stallonatore': {
     name: 'Cilindro dello stallonatore',
-    text: 'Il cilindro più grande della macchina. Spinge una leva corta dietro il perno del braccio: la forza alla paletta è la forza del cilindro moltiplicata per il rapporto tra i due bracci di leva.',
+    text: 'Il cilindro più grande della macchina, a doppio effetto: l\'aria nella camera di fondo spinge la leva corta dietro il perno e chiude la lama sul fianco, l\'aria nella camera lato stelo la riapre. La forza alla lama è la forza del cilindro moltiplicata per il rapporto tra i due bracci di leva.',
     data: [{ k: 'Alesaggio', v: '200 mm', indicativo: true }],
+  },
+  pulsantiera: {
+    name: 'Pulsantiera dello stallonatore',
+    text: 'Sul fianco del mobile, sopra il perno del braccio. STALLONA avvia il ciclo automatico: avvicinamento della lama, spinta finché il tallone si stacca, ritorno. RITORNO riapre subito il braccio. ARRESTO, il fungo rosso, toglie corrente alle bobine e ferma lo stallonatore. I cavi portano il comando alle bobine dell\'elettrovalvola.',
+    data: [{ k: 'Tensione di comando', v: '24 V c.c.', indicativo: true }],
+  },
+  elettrovalvola: {
+    name: 'Elettrovalvola dello stallonatore',
+    text: 'Valvola 5/3 a due bobine. Con la bobina di spinta eccitata l\'aria va nella camera di fondo del cilindro, con la bobina di ritorno nella camera lato stelo. Senza corrente torna al centro e mette in scarico le due camere: è la posizione di arresto.',
+    data: [
+      { k: 'Tipo', v: '5/3 a centro in scarico', indicativo: true },
+      { k: 'Bobine', v: '24 V c.c.', indicativo: true },
+    ],
   },
   tamponi: {
     name: 'Tamponi in gomma',
@@ -85,11 +111,11 @@ export const PARTS: Record<string, PartInfo> = {
   },
   pedaliera: {
     name: 'Pedaliera',
-    text: 'Quattro pedali comandano, da sinistra: rotazione del piatto (nei due sensi), apertura e chiusura delle griffe, stallonatore e ribaltamento del palo. Le mani restano libere per guidare il pneumatico.',
+    text: 'Tre pedali comandano, da sinistra: rotazione del piatto (nei due sensi), apertura e chiusura delle griffe e ribaltamento del palo. Le mani restano libere per guidare il pneumatico. Lo stallonatore ha la sua pulsantiera elettrica.',
   },
   valvole: {
     name: 'Distributori pneumatici',
-    text: 'Valvole comandate dai pedali che mandano l\'aria compressa all\'una o all\'altra camera dei cilindri.',
+    text: 'Valvole comandate dai pedali che mandano l\'aria compressa all\'una o all\'altra camera dei cilindri. Da qui parte anche la linea che alimenta l\'elettrovalvola dello stallonatore.',
   },
   frl: {
     name: 'Filtro, regolatore, lubrificatore',

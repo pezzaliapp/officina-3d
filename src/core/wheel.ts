@@ -41,12 +41,7 @@ export function wheelMeshes(spec: WheelSpec) {
   const { rimR: R, width: w, tireR: Rt, tireW: Wt } = wheelGeometry(spec)
   const h = w / 2
   const rim: { geo: THREE.BufferGeometry; look: RimLook }[] = []
-  let tire!: THREE.BufferGeometry
-  // Cerchio: profilo del canale a spessore costante, simmetrico sulle due balconate.
-  const fl: RX[] = [[R + 0.016, -h - 0.009], [R + 0.019, -h - 0.004], [R + 0.015, -h + 0.001], [R + 0.004, -h + 0.003], [R, -h + 0.01]]
-  const mid: RX[] = [[R, -h + 0.18 * w], [R - 0.024, -h + 0.26 * w], [R - 0.024, -h + 0.55 * w], [R, -h + 0.65 * w]]
-  const mir = fl.map(([r, x]) => [r, -x] as RX).reverse()
-  rim.push({ geo: revolveX(shell([...fl, ...mid, ...mir], 0.0045), 96), look: 'alu' })
+  rim.push({ geo: revolveX(rimSection(spec), 96), look: 'alu' })
 
   // Disco a 5 razze con foro centrale e fori bulloni.
   const ds = new THREE.Shape()
@@ -75,6 +70,35 @@ export function wheelMeshes(spec: WheelSpec) {
   rim.push({ geo: new THREE.CylinderGeometry(0.004, 0.005, 0.03, 10).translate(0, R - 0.01, 0).rotateX(2.4).translate(h - 0.02, 0, 0), look: 'dark' })
 
   // Pneumatico: sezione cava con fianchi bombati, spalla arrotondata e scanalature.
+  const smooth = tireSection(spec)
+  const inner = tireInner(spec, smooth)
+  const grooves = [-0.32, -0.11, 0.11, 0.32].map((k) => k * Wt)
+  const outerP = smooth.map(([r, x]) => {
+    if (r < Rt - 0.004) return [r, x] as RX
+    const g = grooves.some((gx) => Math.abs(x - gx) < 0.005)
+    return [g ? r - 0.008 : r, x] as RX
+  })
+  const tire = revolveX([...outerP, ...inner.reverse(), outerP[0]], 120)
+  return { rim, tire }
+}
+
+/** Sezione del cerchio nel piano (r, x): canale a spessore costante, simmetrico sulle due balconate. */
+export function rimSection(spec: WheelSpec): RX[] {
+  const { rimR: R, width: w } = wheelGeometry(spec)
+  const h = w / 2
+  const fl: RX[] = [[R + 0.016, -h - 0.009], [R + 0.019, -h - 0.004], [R + 0.015, -h + 0.001], [R + 0.004, -h + 0.003], [R, -h + 0.01]]
+  const mid: RX[] = [[R, -h + 0.18 * w], [R - 0.024, -h + 0.26 * w], [R - 0.024, -h + 0.55 * w], [R, -h + 0.65 * w]]
+  const mir = fl.map(([r, x]) => [r, -x] as RX).reverse()
+  return shell([...fl, ...mid, ...mir], 0.0045)
+}
+
+/**
+ * Contorno esterno del pneumatico nel piano (r, x), dal tallone esterno (+x) a quello interno:
+ * fianchi bombati e spalla arrotondata, senza le scanalature del battistrada.
+ */
+export function tireSection(spec: WheelSpec): RX[] {
+  const { rimR: R, width: w, tireR: Rt, tireW: Wt } = wheelGeometry(spec)
+  const h = w / 2
   const side: RX[] = []
   const rs0 = R + 0.022, rs1 = Rt - 0.025
   for (let i = 0; i <= 14; i++) {
@@ -98,19 +122,23 @@ export function wheelMeshes(spec: WheelSpec) {
   }
   const smooth: RX[] = [...outSide.map(([r, x]) => [r, -x] as RX), ...tread.reverse(), ...[...outSide].reverse()]
   // percorso dalla tallonatura esterna (+x) verso quella interna: lo ordiniamo da -x a +x
-  smooth.reverse()
+  return smooth.reverse()
+}
+
+/** Contorno interno del pneumatico: quello esterno spostato dello spessore della carcassa, chiuso sui talloni. */
+function tireInner(spec: WheelSpec, smooth: RX[]) {
+  const { rimR: R, tireR: Rt } = wheelGeometry(spec)
   const inner = offset(smooth, 0.011, [(R + Rt) / 2, 0])
   inner[0] = [R + 0.001, smooth[0][1] + (smooth[0][1] > 0 ? -0.012 : 0.012)]
   const L = inner.length - 1
   inner[L] = [R + 0.001, smooth[L][1] + (smooth[L][1] > 0 ? -0.012 : 0.012)]
-  const grooves = [-0.32, -0.11, 0.11, 0.32].map((k) => k * Wt)
-  const outerP = smooth.map(([r, x]) => {
-    if (r < Rt - 0.004) return [r, x] as RX
-    const g = grooves.some((gx) => Math.abs(x - gx) < 0.005)
-    return [g ? r - 0.008 : r, x] as RX
-  })
-  tire = revolveX([...outerP, ...inner.reverse(), outerP[0]], 120)
-  return { rim, tire }
+  return inner
+}
+
+/** Sezione della gomma (carcassa cava, aperta tra i talloni) nel piano (r, x). */
+export function tireShell(spec: WheelSpec): RX[] {
+  const smooth = tireSection(spec)
+  return [...smooth, ...tireInner(spec, smooth).reverse()]
 }
 
 /** Sposta una polilinea (r, x) di t verso il punto interno indicato. */
@@ -124,4 +152,19 @@ function offset(p: RX[], t: number, inside: RX): RX[] {
     if (nr * (inside[0] - pt[0]) + nx * (inside[1] - pt[1]) < 0) { nr = -nr; nx = -nx }
     return [pt[0] + nr * t, pt[1] + nx * t]
   })
+}
+
+const sections = new WeakMap<WheelSpec, RX[]>()
+
+/** Semilarghezza esterna del pneumatico al raggio r (sporgenza del fianco dal piano centrale), 0 fuori dal fianco. */
+export function tireHalfWidth(spec: WheelSpec, r: number) {
+  let p = sections.get(spec)
+  if (!p) sections.set(spec, (p = tireSection(spec)))
+  let best = 0
+  for (let i = 0; i + 1 < p.length; i++) {
+    const [r0, x0] = p[i], [r1, x1] = p[i + 1]
+    if (x0 < 0 || x1 < 0 || r < Math.min(r0, r1) || r > Math.max(r0, r1) || r0 === r1) continue
+    best = Math.max(best, x0 + ((x1 - x0) * (r - r0)) / (r1 - r0))
+  }
+  return best
 }

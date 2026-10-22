@@ -11,7 +11,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "icons": "node tools/icons.mjs"
+    "icons": "node tools/icons.mjs",
+    "verifica": "vite build --ssr tools/verifica.ts --outDir .verifica --emptyOutDir --logLevel warn && node .verifica/verifica.js"
   },
   "dependencies": {
     "three": "^0.186.1"

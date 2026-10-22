@@ -3,7 +3,8 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { Section } from '../core/section'
 import { MachineModel, LOOK, Look } from '../core/model'
 import { revolveX, cylX, tubeX, box, beltPath, RX } from '../core/geo'
-import { WheelSpec, wheelGeometry, wheelMeshes } from '../core/wheel'
+import { WheelSpec, wheelGeometry, wheelMeshes, rimSection, tireShell, tireHalfWidth } from '../core/wheel'
+import { Solid } from '../core/interference'
 
 /** Quota del piano del piatto e sua posizione in profondità, m. */
 export const TT_Y = 0.765
@@ -11,16 +12,30 @@ export const TT_Z = -0.03
 /** Cerniera del palo ribaltabile. */
 export const COL_P = new THREE.Vector3(0, 0.5, -0.49)
 export const COL_BACK = -0.42
-/** Perno verticale del braccio stallonatore, lunghezza del braccio e quota della paletta. */
-export const BB_P = new THREE.Vector3(0.4, 0.42, -0.34)
-export const ARM_L = 0.8
-export const BLADE_Y = 0.3
+/**
+ * Stallonatore: perno verticale sul fianco destro del mobile, verso il retro.
+ * Il braccio è a gomito: un tratto esce dal fianco dietro la ruota (lungo x), uno
+ * corre in avanti fuori dal fianco del pneumatico (lungo z) e porta la lama, che
+ * guarda verso il mobile. Valori nel sistema del braccio con angolo 0.
+ */
+export const BB_P = new THREE.Vector3(0.43, 0.48, -0.33)
+export const BB_OUT = 0.3
+export const ARM_L = 0.68
+export const BLADE_Y = 0.305
+/** Bordo di spinta della lama (centro) e raggio del suo arco, concentrico al cerchio. */
+export const BLADE = new THREE.Vector3(0.182, BLADE_Y - BB_P.y, ARM_L)
+export const BLADE_R = 0.25
+/** Mezza altezza della lama lungo l'arco, m. */
+export const BLADE_HALF = 0.085
 /** Faccia esterna dei tamponi su cui appoggia la ruota. */
 export const PAD_X = 0.41
 /** Leva corta dietro il perno, su cui spinge il cilindro (nel sistema del braccio). */
 export const BB_LEVER = new THREE.Vector3(-0.2, -0.14, -0.06)
 /** Attacco fisso del cilindro dello stallonatore. */
 export const BB_ANCHOR = new THREE.Vector3(0.2, 0.28, 0.12)
+/** Elettrovalvola dello stallonatore e pulsantiera sul fianco. */
+const EV = new THREE.Vector3(0.24, 0.55, -0.14)
+const PB = new THREE.Vector3(0.38, 0.635, -0.2)
 const TILT_ANCHOR = new THREE.Vector3(0, 0.1, -0.32)
 const ZW = TT_Z + 0.091 // asse della vite senza fine
 /** Asse della colonna del braccio di aiuto (x, z). */
@@ -28,6 +43,8 @@ export const HC = { x: -0.56, z: -0.05 }
 const BELT_X = -0.27
 
 const JAW_ANGLES = [0.25, 0.75, 1.25, 1.75].map((k) => k * Math.PI)
+/** Labbro delle griffe: spessore radiale e quota della sommità sopra il piatto. */
+export const JAW_LIP = 0.012, JAW_TOP = 0.044
 
 /**
  * Cilindro pneumatico tra due punti: canna fissa sull'attacco, pistone e stelo
@@ -70,8 +87,45 @@ function ramParts(r: number, len: number, mat: (look: Look) => THREE.Material) {
 
 interface AirLine { curve: THREE.CatmullRomCurve3; dots: THREE.Mesh[]; kind: string }
 
-/** Un utensile del braccio di aiuto: braccio girevole, carrello, cilindro verticale e utensile. */
-export interface HelperTool { arm: THREE.Group; carrier: THREE.Group; slide: THREE.Group; tool: THREE.Group; y: number }
+/**
+ * Lastra di spessore t piegata ad arco di raggio R attorno a un asse parallelo a x che passa
+ * per (cy, cz). La sagoma è data lungo l'arco: per ogni s in [-H, H] la lastra va da x0(s) a x1(s).
+ */
+function bentPlate(R: number, cy: number, cz: number, H: number, t: number, x0: (s: number) => number, x1: (s: number) => number) {
+  const g = new THREE.BoxGeometry(1, 2 * H, t, 6, 32, 1)
+  const p = g.attributes.position as THREE.BufferAttribute
+  for (let i = 0; i < p.count; i++) {
+    const u = p.getX(i) + 0.5, sv = p.getY(i), d = p.getZ(i)
+    const th = sv / R, rho = R + d
+    p.setXYZ(i, x0(sv) + (x1(sv) - x0(sv)) * u, cy + rho * Math.sin(th), cz + rho * Math.cos(th))
+  }
+  g.computeVertexNormals()
+  return g
+}
+
+/**
+ * Un utensile del braccio di aiuto: braccio girevole, carrello, cilindro verticale e utensile.
+ * y è la quota del braccio, rod la lunghezza dello stelo, ext la prolunga sotto lo stelo fino al punto di lavoro.
+ */
+export interface HelperTool { arm: THREE.Group; carrier: THREE.Group; slide: THREE.Group; piston: THREE.Object3D; tool: THREE.Group; y: number; rod: number; ext: number }
+
+/** Quota dello stelo con l'utensile alzato. */
+export const HOLD = -0.12
+
+/** Contatto di un utensile che schiaccia il fianco: punto (mondo), profondità, estensione radiale oltre il punto e mezza larghezza. */
+export interface Press { at: THREE.Vector3; depth: number; reach?: number; half?: number }
+
+/**
+ * Talloni allargati attorno alla testina durante montaggio e smontaggio: at è un punto
+ * della testina (mondo), upper e lower quanto è uscito ciascun tallone (0..1).
+ */
+export interface Bulge { at: THREE.Vector3; upper: number; lower: number }
+
+/** Allargamento del tallone attorno alla testina: radiale (al tallone; il battistrada si sposta di BULGE_TREAD volte tanto) e verso l'alto, m. */
+const BULGE_DR = 0.12, BULGE_TREAD = 0.4, BULGE_DX = 0.02
+/** Mezza larghezza (lungo il tallone) della zona allargata a pieno e lunghezza del raccordo, m. */
+const BULGE_HALF = 0.06, BULGE_FADE = 0.08
+const smooth01 = (t: number) => { const k = Math.min(Math.max(t, 0), 1); return k * k * (3 - 2 * k) }
 
 export class TireChangerModel extends MachineModel {
   readonly tt = new THREE.Group()
@@ -92,9 +146,16 @@ export class TireChangerModel extends MachineModel {
   readonly lockPin = new THREE.Group()
   readonly helper: Record<'rullo' | 'disco' | 'cono', HelperTool> = {} as never
   readonly joystick = new THREE.Group()
+  /** Testina dell'utensile di montaggio, per riferire la deformazione dei talloni. */
+  head!: THREE.Group
   readonly airLines: AirLine[] = []
   readonly beltMap: THREE.CanvasTexture
   readonly bladeArrow: THREE.ArrowHelper
+  /** Pulsanti della pulsantiera dello stallonatore. */
+  readonly buttons: Record<'stallona' | 'ritorno' | 'arresto', THREE.Group> = {} as never
+  /** Bobine dell'elettrovalvola: si illuminano quando sono eccitate. */
+  readonly coils: Record<'a' | 'b', THREE.MeshStandardMaterial> = {} as never
+  readonly cables: AirLine[] = []
   beltLen = 1
   private bbRam!: Ram
   private tiltRam!: Ram
@@ -102,6 +163,9 @@ export class TireChangerModel extends MachineModel {
   private tireG!: THREE.Group
   private tireMesh: THREE.Mesh | null = null
   private tireBase: Float32Array | null = null
+  /** Deformazione del pneumatico in corso, nel suo sistema di riferimento. */
+  private warp: { cs: { side: number; phi: number; rc: number; depth: number; reach: number; half: number }[]; bulge: { phi: number; upper: number; lower: number } | null; R: number; Rt: number; Wt: number } = { cs: [], bulge: null, R: 0, Rt: 0, Wt: 0 }
+  private cableG = new THREE.Group()
   private hose: THREE.Mesh | null = null
   private hoseG!: THREE.Group
   private airG = new THREE.Group()
@@ -124,6 +188,7 @@ export class TireChangerModel extends MachineModel {
     this.column()
     this.beadBreaker()
     this.pneumatics()
+    this.pushbuttons()
     this.col.add(this.colAir)
     this.airLine('asta', [new THREE.Vector3(0.03, 0.0, 0.03), new THREE.Vector3(0.03, 0.6, 0.03), new THREE.Vector3(0.03, 0.95, 0.05), new THREE.Vector3(-0.06, 1.0, 0.13)], this.colAir, 'bloccaggio')
     this.helperArm()
@@ -155,6 +220,9 @@ export class TireChangerModel extends MachineModel {
     this.mesh(left, box(t, H, D, x0 + t / 2, yc, zc), LOOK.paint)
     const right = this.piece('mobile', [0.5, 0, 0])
     this.mesh(right, box(t, H, D, x1 - t / 2, yc, zc), LOOK.paint)
+    // staffa del perno dello stallonatore: due orecchie sopra e sotto il mozzo del braccio
+    for (const y of [BB_P.y + 0.07, BB_P.y - 0.2]) this.mesh(right, box(BB_P.x + 0.045 - x1, 0.025, 0.09, (x1 + BB_P.x + 0.045) / 2, y, BB_P.z), LOOK.dark)
+    this.mesh(right, box(0.012, 0.32, 0.12, x1 + 0.006, BB_P.y - 0.065, BB_P.z), LOOK.dark)
     const front = this.piece('mobile', [0, 0, 0.5])
     this.mesh(front, box(W - 2 * t, H, t, xc, yc, z1 - t / 2), LOOK.paint)
     this.mesh(front, box(W - 0.1, 0.22, 0.006, xc, 0.42, z1 + 0.002), LOOK.accent)
@@ -172,15 +240,15 @@ export class TireChangerModel extends MachineModel {
     for (const z of [0.0, 0.3]) this.mesh(pads, new RoundedBoxGeometry(0.03, 0.14, 0.1, 2, 0.01).translate(PAD_X - 0.015, 0.3, z), LOOK.rubber)
     this.mesh(pads, new RoundedBoxGeometry(0.03, 0.06, 0.5, 2, 0.01).translate(PAD_X - 0.015, 0.11, 0.15), LOOK.rubber)
 
-    // pedaliera: da sinistra rotazione, griffe, stallonatore, palo
+    // pedaliera: da sinistra rotazione, griffe, palo (lo stallonatore ha la sua pulsantiera)
     const ped = this.piece('pedaliera', [0, 0, 0.55])
-    this.mesh(ped, box(0.5, 0.03, 0.06, 0, 0.075, 0.37), LOOK.dark)
-    const looks: Look[] = [LOOK.dark, LOOK.dark, LOOK.accent, LOOK.dark]
-    for (let i = 0; i < 4; i++) {
+    this.mesh(ped, box(0.4, 0.03, 0.06, 0, 0.075, 0.37), LOOK.dark)
+    const looks: Look[] = [LOOK.accent, LOOK.dark, LOOK.dark]
+    for (let i = 0; i < 3; i++) {
       const p = new THREE.Group()
       p.userData.part = 'pedaliera'
       p.userData.front = true
-      p.position.set(-0.18 + i * 0.12, 0.085, 0.37)
+      p.position.set(-0.12 + i * 0.12, 0.085, 0.37)
       ped.add(p)
       this.mesh(p, new RoundedBoxGeometry(0.08, 0.018, 0.13, 2, 0.006).rotateX(-0.25).translate(0, 0.02, 0.07), looks[i])
       this.pedals.push(p)
@@ -212,10 +280,11 @@ export class TireChangerModel extends MachineModel {
       j.userData.part = 'griffe'
       j.rotation.y = -a
       jg.add(j)
-      // parte alta con la faccia dentata verso il centro, gradino su cui appoggia il cerchio
-      this.mesh(j, box(0.05, 0.06, 0.05, 0.025, TT_Y + 0.03, 0), LOOK.dark)
+      // corpo basso sotto il fianco, gradino su cui appoggia il cerchio e labbro dentato che stringe la balconata
+      this.mesh(j, box(0.05, 0.015, 0.05, 0.025, TT_Y + 0.0075, 0), LOOK.dark)
       this.mesh(j, box(0.035, 0.03, 0.04, -0.0175, TT_Y + 0.015, 0), LOOK.dark)
-      for (let k = 0; k < 3; k++) this.mesh(j, box(0.004, 0.006, 0.04, 0.002, TT_Y + 0.037 + k * 0.009, 0), LOOK.steel)
+      this.mesh(j, box(JAW_LIP, JAW_TOP - 0.015, 0.04, JAW_LIP / 2, TT_Y + (JAW_TOP + 0.015) / 2, 0), LOOK.dark)
+      for (let k = 0; k < 3; k++) this.mesh(j, box(0.003, 0.003, 0.04, 0.0015, TT_Y + 0.033 + k * 0.004, 0), LOOK.steel)
       this.mesh(j, box(0.02, 0.03, 0.03, 0.02, TT_Y - 0.03, 0), LOOK.steel)
       this.jaws.push(j)
     }
@@ -341,11 +410,12 @@ export class TireChangerModel extends MachineModel {
     const h = this.piece('asta', [0, 0.25, 0.25], this.armSlide)
     h.add(this.hexSlide)
     this.hexSlide.userData.part = 'asta'
-    this.mesh(this.hexSlide, new THREE.CylinderGeometry(0.025, 0.025, 0.95, 6).translate(0, 0.475 + 0.09, -0.02), LOOK.steel)
-    this.mesh(this.hexSlide, new THREE.CylinderGeometry(0.03, 0.03, 0.02, 6).translate(0, 1.05, -0.02), LOOK.dark)
+    this.mesh(this.hexSlide, new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6).translate(0, 0.4 + 0.09, -0.02), LOOK.steel)
+    this.mesh(this.hexSlide, new THREE.CylinderGeometry(0.03, 0.03, 0.02, 6).translate(0, 0.9, -0.02), LOOK.dark)
 
     // utensile: profilo laterale estruso, con la lingua verso il centro del cerchio (+z)
     const u = this.piece('utensile', [0, 0.08, 0.2], this.hexSlide)
+    this.head = u
     const s = new THREE.Shape()
     const pts: [number, number][] = [[-0.055, 0.09], [0.005, 0.09], [0.014, 0.034], [0.034, 0.018], [0.042, 0.005], [0.032, -0.004], [0.012, 0.003], [0.0, -0.004], [-0.018, -0.004], [-0.055, 0.025]]
     s.moveTo(pts[0][0], pts[0][1])
@@ -372,13 +442,15 @@ export class TireChangerModel extends MachineModel {
 
   private beadBreaker() {
     const g = this.piece('stallonatore', [0.35, 0, 0.12], this.bb)
-    this.mesh(g, new THREE.CylinderGeometry(0.026, 0.026, 0.26, 20).translate(0, -0.08, 0), LOOK.steel)
-    this.mesh(g, new RoundedBoxGeometry(0.06, 0.05, ARM_L + 0.04, 2, 0.01).translate(0, 0, ARM_L / 2), LOOK.paint)
-    this.mesh(g, box(0.045, 0.18, 0.045, 0, -0.06, ARM_L), LOOK.paint)
-    // paletta rivolta verso il mobile (−x)
-    this.mesh(g, new RoundedBoxGeometry(0.014, 0.075, 0.11, 2, 0.004).translate(-0.03, BLADE_Y - BB_P.y, ARM_L), LOOK.steel)
-    this.mesh(g, new THREE.CylinderGeometry(0.013, 0.013, 0.2, 14).translate(0, 0.12, ARM_L), LOOK.steel)
-    this.mesh(g, new THREE.CylinderGeometry(0.018, 0.018, 0.08, 16).translate(0, 0.2, ARM_L), LOOK.rubber)
+    // mozzo sul perno e braccio a gomito: esce dal fianco dietro la ruota, poi corre in avanti fuori dal pneumatico
+    this.mesh(g, new THREE.CylinderGeometry(0.04, 0.04, 0.22, 24).translate(0, -0.06, 0), LOOK.paint)
+    this.mesh(g, new THREE.CylinderGeometry(0.02, 0.02, 0.3, 16).translate(0, -0.065, 0), LOOK.steel)
+    this.mesh(g, new RoundedBoxGeometry(BB_OUT + 0.07, 0.07, 0.06, 2, 0.01).translate(BB_OUT / 2, 0, 0), LOOK.paint)
+    this.mesh(g, new RoundedBoxGeometry(0.06, 0.07, ARM_L + 0.06, 2, 0.01).translate(BB_OUT, 0, ARM_L / 2), LOOK.paint)
+    this.mesh(g, box(0.002, 0.045, 0.06, BB_OUT + 0.031, 0, ARM_L - 0.13), LOOK.yellow)
+    // supporto della lama: scende dall'estremità del braccio fino all'altezza del bordo del cerchio
+    const xb = BLADE.x + 0.07
+    this.mesh(g, box(BB_OUT + 0.025 - xb, 0.29, 0.08, (xb + BB_OUT + 0.025) / 2, BLADE.y - 0.095 + 0.145, ARM_L - 0.005), LOOK.dark)
     // leva corta interna su cui spinge il cilindro
     const lv = BB_LEVER
     const len = Math.hypot(lv.x, lv.z)
@@ -387,15 +459,121 @@ export class TireChangerModel extends MachineModel {
     this.mesh(g, lb, LOOK.dark)
     this.mesh(g, new THREE.CylinderGeometry(0.014, 0.014, 0.06, 14).translate(lv.x, lv.y, lv.z), LOOK.steel)
 
+    // lama in acciaio: lastra curva concentrica al cerchio, bordo di spinta arrotondato verso il mobile
+    const lam = this.piece('paletta', [0.42, 0, 0.12], this.bb)
+    const cy = BLADE.y, cz = BLADE.z - BLADE_R, H = BLADE_HALF
+    // sagoma laterale come nella foto: spigolo alto raccordato, angolo basso smussato
+    const x0 = (sv: number) => BLADE.x + Math.max(0, sv - (H - 0.012)) * 0.9 + Math.max(0, -(H - 0.03) - sv) * 0.9
+    const x1 = () => BLADE.x + 0.105
+    this.mesh(lam, bentPlate(BLADE_R, cy, cz, H, 0.008, x0, x1), LOOK.steel)
+    const edge: THREE.Vector3[] = []
+    for (let i = 0; i <= 24; i++) {
+      const sv = -H + (2 * H * i) / 24
+      edge.push(new THREE.Vector3(x0(sv) + 0.005, cy + BLADE_R * Math.sin(sv / BLADE_R), cz + BLADE_R * Math.cos(sv / BLADE_R)))
+    }
+    this.mesh(lam, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge), 48, 0.005, 10), LOOK.steel)
+    for (const sv of [-0.045, 0.045]) {
+      const y = cy + BLADE_R * Math.sin(sv / BLADE_R), z = cz + BLADE_R * Math.cos(sv / BLADE_R)
+      this.mesh(lam, cylX(0.006, BLADE.x + 0.065, BLADE.x + 0.115, 12).translate(0, y, z), LOOK.dark)
+    }
+
     const rg = this.piece('cilindro-stallonatore', [0, 0, 0.35])
     const bp = ramParts(0.11, 0.22, (l) => this.mat('cilindro-stallonatore', l, true))
     rg.add(bp.barrel, bp.piston, bp.rod)
-    this.bbRam = new Ram(rg, bp.barrel, bp.rod, bp.piston, 0.22, 0.26)
+    this.bbRam = new Ram(rg, bp.barrel, bp.rod, bp.piston, 0.22, 0.33)
 
     const tg = this.piece('cilindro-palo', [0, 0, -0.3])
     const tp = ramParts(0.04, 0.24, (l) => this.mat('cilindro-palo', l))
     tg.add(tp.barrel, tp.piston, tp.rod)
     this.tiltRam = new Ram(tg, tp.barrel, tp.rod, tp.piston, 0.24, 0.2)
+  }
+
+  // ---------- pulsantiera ed elettrovalvola dello stallonatore ----------
+
+  private pushbuttons() {
+    const g = this.piece('pulsantiera', [0.3, 0.1, 0])
+    const fx = PB.x + 0.04
+    this.mesh(g, new RoundedBoxGeometry(0.04, 0.12, 0.17, 2, 0.008).translate(PB.x + 0.02, PB.y, PB.z), LOOK.grey)
+    // targhetta con le scritte sopra i pulsanti
+    const cv = document.createElement('canvas')
+    cv.width = 512; cv.height = 128
+    const c = cv.getContext('2d')!
+    c.fillStyle = '#e9e6dd'; c.fillRect(0, 0, 512, 128)
+    c.fillStyle = '#1a1b1e'; c.font = '700 34px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'
+    ;['STALLONA', 'RITORNO', 'ARRESTO'].forEach((t, i) => c.fillText(t, 90 + i * 166, 64))
+    const tex = new THREE.CanvasTexture(cv)
+    tex.colorSpace = THREE.SRGBColorSpace
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.0375), this.custom('pulsantiera', new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }), LOOK.grey.h))
+    plate.rotation.y = Math.PI / 2
+    plate.position.set(fx + 0.001, PB.y + 0.038, PB.z)
+    g.add(plate)
+    const specs: ['stallona' | 'ritorno' | 'arresto', number, number][] = [['stallona', 0x2fa34a, 0.05], ['ritorno', 0x2a2d33, 0], ['arresto', 0xd23a2a, -0.05]]
+    for (const [name, col, dz] of specs) {
+      const b = new THREE.Group()
+      b.userData.part = 'pulsantiera'
+      b.position.set(fx, PB.y - 0.012, PB.z + dz)
+      g.add(b)
+      const m = this.custom('pulsantiera', new THREE.MeshStandardMaterial({ color: col, roughness: 0.4, metalness: 0.1 }), LOOK.grey.h)
+      if (name === 'arresto') {
+        // fungo rosso su ghiera gialla
+        this.mesh(g, cylX(0.022, fx - 0.001, fx + 0.004, 32).translate(0, PB.y - 0.012, PB.z + dz), LOOK.yellow)
+        b.add(new THREE.Mesh(new THREE.SphereGeometry(0.02, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.55, 1).rotateZ(-Math.PI / 2).translate(0.012, 0, 0), m))
+        b.add(new THREE.Mesh(cylX(0.009, 0, 0.013, 16), m))
+      } else {
+        this.mesh(g, cylX(0.016, fx - 0.001, fx + 0.004, 32).translate(0, PB.y - 0.012, PB.z + dz), LOOK.dark)
+        b.add(new THREE.Mesh(cylX(0.012, 0, 0.011, 28), m))
+      }
+      this.buttons[name] = b
+    }
+
+    // elettrovalvola 5/3 a centro in scarico: corpo, due bobine, sottobase con le bocche
+    const ev = this.piece('elettrovalvola', [0, 0.1, -0.3])
+    this.mesh(ev, box(0.12, 0.04, 0.045, EV.x, EV.y, EV.z), LOOK.grey)
+    this.mesh(ev, box(0.14, 0.015, 0.06, EV.x, EV.y - 0.027, EV.z), LOOK.dark)
+    for (const [k, sx] of [['a', 1], ['b', -1]] as const) {
+      const m = this.custom('elettrovalvola', new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.5, emissive: 0xffc23a, emissiveIntensity: 0 }), 0x3a7bd5, true)
+      const coil = new THREE.Mesh(box(0.04, 0.042, 0.042, EV.x + sx * 0.08, EV.y, EV.z), m)
+      coil.userData.part = 'elettrovalvola'
+      ev.add(coil)
+      this.mesh(ev, box(0.012, 0.02, 0.02, EV.x + sx * 0.106, EV.y + 0.008, EV.z), LOOK.dark)
+      this.coils[k] = m
+    }
+
+    // cavi dalla pulsantiera alle bobine: i segnali corrono quando un pulsante è premuto
+    this.root.add(this.cableG)
+    const cm = this.custom('pulsantiera', new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.6 }), 0x3a7bd5)
+    const V = (a: number, b: number, c: number) => new THREE.Vector3(a, b, c)
+    const paths: [string, THREE.Vector3[]][] = [
+      ['a', [V(PB.x - 0.002, PB.y + 0.01, PB.z + 0.03), V(0.33, 0.62, -0.18), V(EV.x + 0.12, EV.y + 0.04, EV.z), V(EV.x + 0.112, EV.y + 0.008, EV.z)]],
+      ['b', [V(PB.x - 0.002, PB.y - 0.01, PB.z + 0.03), V(0.3, 0.64, -0.17), V(EV.x - 0.02, EV.y + 0.07, EV.z), V(EV.x - 0.112, EV.y + 0.008, EV.z)]],
+    ]
+    const dotM = new THREE.MeshBasicMaterial({ color: 0xffd23f, toneMapped: false })
+    for (const [kind, pts] of paths) {
+      const curve = new THREE.CatmullRomCurve3(pts)
+      const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.0035, 6), cm)
+      m.userData.part = 'pulsantiera'
+      this.cableG.add(m)
+      const dots: THREE.Mesh[] = []
+      for (let i = 0; i < 4; i++) {
+        const d = new THREE.Mesh(this.dotG, dotM)
+        d.userData.noPick = true
+        d.visible = false
+        this.cableG.add(d)
+        dots.push(d)
+      }
+      this.cables.push({ curve, dots, kind })
+    }
+  }
+
+  /** Segnali elettrici nei cavi della pulsantiera e bobine accese. */
+  signals(a: boolean, b: boolean, phase: number) {
+    for (const l of this.cables) {
+      const on = l.kind === 'a' ? a : b
+      l.dots.forEach((d, i) => {
+        d.visible = on
+        if (on) l.curve.getPointAt((((phase * 1.6 + i / l.dots.length) % 1) + 1) % 1, d.position)
+      })
+    }
   }
 
   /** Riporta i cilindri tra i loro attacchi dopo un movimento di palo o stallonatore. */
@@ -434,9 +612,19 @@ export class TireChangerModel extends MachineModel {
     this.lineMat = lm
     const V = (a: number, b: number, c: number) => new THREE.Vector3(a, b, c)
     const vbOut = V(-0.12, 0.33, 0.25)
+    // bocche del cilindro dello stallonatore: sul fondello e sulla testata lato stelo
+    const lev = BB_LEVER.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.1).add(BB_P)
+    const dir = lev.sub(BB_ANCHOR).normalize()
+    const up = new THREE.Vector3(0, 1, 0).addScaledVector(dir, -dir.y).normalize()
+    const capPort = BB_ANCHOR.clone().addScaledVector(dir, 0.02).addScaledVector(up, 0.11)
+    const rodPort = BB_ANCHOR.clone().addScaledVector(dir, 0.2).addScaledVector(up, 0.11)
+    const evP = V(EV.x, EV.y - 0.035, EV.z), evA = V(EV.x + 0.03, EV.y - 0.035, EV.z + 0.03), evB = V(EV.x - 0.03, EV.y - 0.035, EV.z + 0.03)
     const lines: [string, THREE.Vector3[]][] = [
       ['linea', [V(x, 0.6, -0.3), V(-0.36, 0.6, -0.28), V(-0.25, 0.45, 0.1), V(-0.2, 0.33, 0.25)]],
-      ['stallonatore', [vbOut, V(0.05, 0.36, 0.25), V(0.18, 0.4, 0.2), V(BB_ANCHOR.x, BB_ANCHOR.y + 0.11, BB_ANCHOR.z)]],
+      // stallonatore: distributori → elettrovalvola → una delle due camere del cilindro
+      ['bb', [vbOut, V(0.05, 0.4, 0.2), V(0.2, 0.47, -0.05), evP]],
+      ['bb-spinta', [evA, V(EV.x + 0.04, EV.y - 0.08, EV.z + 0.12), capPort.clone().add(V(0, 0.05, 0)), capPort]],
+      ['bb-ritorno', [evB, V(EV.x - 0.05, EV.y - 0.07, EV.z + 0.08), rodPort.clone().add(V(0, 0.04, 0)), rodPort]],
       ['griffe', [vbOut, V(-0.05, 0.42, 0.18), V(0.0, 0.5, 0.06), V(0.0, 0.58, TT_Z + 0.03)]],
       ['palo', [vbOut, V(-0.12, 0.2, 0.1), V(-0.05, 0.12, -0.15), V(TILT_ANCHOR.x, TILT_ANCHOR.y, TILT_ANCHOR.z)]],
       ['gonfiaggio', [vbOut, V(-0.22, 0.45, 0.28), V(-0.31, 0.62, 0.27), V(-0.32, 0.72, 0.27)]],
@@ -472,10 +660,10 @@ export class TireChangerModel extends MachineModel {
   private helperArm() {
     const { x: hx, z: hz } = HC
     const col = this.piece('helper', [-0.4, 0.15, -0.1])
-    this.mesh(col, new RoundedBoxGeometry(0.11, 1.42, 0.11, 2, 0.01).translate(hx, 0.77, hz), LOOK.paint)
+    this.mesh(col, new RoundedBoxGeometry(0.11, 1.56, 0.11, 2, 0.01).translate(hx, 0.84, hz), LOOK.paint)
     this.mesh(col, box(0.26, 0.03, 0.26, hx, 0.075, hz), LOOK.dark)
     for (const y of [0.35, 0.62]) this.mesh(col, box(-0.38 - (hx + 0.055), 0.06, 0.06, (hx + 0.055 - 0.38) / 2, y, hz), LOOK.dark)
-    this.mesh(col, box(0.13, 0.04, 0.13, hx, 1.5, hz), LOOK.accent)
+    this.mesh(col, box(0.13, 0.04, 0.13, hx, 1.64, hz), LOOK.accent)
 
     // comando dedicato: leva a croce su una scatola valvole sulla colonna
     const cmd = this.piece('helper-comando', [-0.15, 0, 0.25])
@@ -487,8 +675,9 @@ export class TireChangerModel extends MachineModel {
     this.mesh(this.joystick, new THREE.CylinderGeometry(0.006, 0.006, 0.07, 10).translate(0, 0.035, 0), LOOK.steel)
     this.mesh(this.joystick, new THREE.SphereGeometry(0.016, 14, 10).translate(0, 0.075, 0), LOOK.accent)
 
-    const tools: ['rullo' | 'disco' | 'cono', number][] = [['disco', 1.22], ['rullo', 1.31], ['cono', 1.4]]
-    for (const [name, y] of tools) {
+    // quota del braccio, stelo e prolunga: il cono lavora più in basso degli altri
+    const tools: ['rullo' | 'disco' | 'cono', number, number, number][] = [['disco', 1.3, 0.3, 0], ['rullo', 1.38, 0.33, 0], ['cono', 1.46, 0.17, 0.3]]
+    for (const [name, y, rod, ext] of tools) {
       const arm = new THREE.Group()
       arm.position.set(hx, y, hz)
       arm.userData.part = 'helper'
@@ -499,16 +688,21 @@ export class TireChangerModel extends MachineModel {
       arm.add(carrier)
       carrier.userData.part = 'helper'
       this.mesh(carrier, box(0.07, 0.07, 0.07, 0, 0, 0), LOOK.paint)
-      // cilindro verticale dell'utensile: canna cava e stelo, visibili in sezione
+      // cilindro verticale dell'utensile, a cavallo del carrello: canna cava, stelo e pistone visibili in sezione
       const cyl = this.piece('helper-cilindri', [0, 0.18, 0], carrier)
-      this.mesh(cyl, new THREE.CylinderGeometry(0.03, 0.03, 0.26, 24).translate(0, -0.16, 0), LOOK.air)
-      this.mesh(cyl, new THREE.CylinderGeometry(0.033, 0.033, 0.015, 24).translate(0, -0.29, 0), LOOK.dark)
+      this.mesh(cyl, new THREE.CylinderGeometry(0.03, 0.03, 0.34, 24, 1, true).translate(0, 0.05, 0), LOOK.air)
+      for (const yy of [-0.12, 0.22]) this.mesh(cyl, new THREE.CylinderGeometry(0.033, 0.033, 0.015, 24).translate(0, yy, 0), LOOK.dark)
       const slide = new THREE.Group()
       carrier.add(slide)
       slide.userData.part = 'helper-cilindri'
-      this.mesh(slide, new THREE.CylinderGeometry(0.011, 0.011, 0.28, 12).translate(0, 0.14, 0), LOOK.steel)
+      this.mesh(slide, new THREE.CylinderGeometry(0.011, 0.011, rod, 12).translate(0, rod / 2, 0), LOOK.steel)
+      const piston = new THREE.Group()
+      piston.userData.part = 'helper-cilindri'
+      piston.position.y = rod
+      slide.add(piston)
+      this.mesh(piston, new THREE.CylinderGeometry(0.026, 0.026, 0.02, 20), LOOK.accent)
       const tool = this.piece('helper-' + name, [0, -0.12, 0.1], slide)
-      this.helper[name] = { arm, carrier, slide, tool, y }
+      this.helper[name] = { arm, carrier, slide, piston, tool, y, rod, ext }
     }
 
     // rullo pressore: ruota di gomma folle su una forcella
@@ -527,9 +721,10 @@ export class TireChangerModel extends MachineModel {
     this.mesh(d, new THREE.CylinderGeometry(0.012, 0.012, 0.05, 12).translate(0, 0.055, 0), LOOK.steel)
     this.mesh(d, revolveX([[0.012, 0], [0.06, 0], [0.075, 0.012], [0.07, 0.03], [0.012, 0.03]], 40).rotateZ(Math.PI / 2), LOOK.plastic)
 
-    // cono di centraggio: preme il cerchio contro il piatto dal centro
-    const c = this.helper.cono.tool
-    this.mesh(c, revolveX([[0, 0], [0.012, 0], [0.05, 0.06], [0.05, 0.08], [0.015, 0.08], [0.015, 0.12], [0, 0.12]], 40).rotateZ(Math.PI / 2), LOOK.steel)
+    // cono di centraggio in fondo alla sua prolunga: preme il cerchio contro il piatto dal centro
+    const c = this.helper.cono.tool, ce = this.helper.cono.ext
+    this.mesh(c, new THREE.CylinderGeometry(0.012, 0.012, ce, 14).translate(0, -ce / 2, 0), LOOK.steel)
+    this.mesh(c, revolveX([[0, 0], [0.012, 0], [0.05, 0.06], [0.05, 0.08], [0.015, 0.08], [0.015, 0.12], [0, 0.12]], 40).rotateZ(Math.PI / 2).translate(0, -ce, 0), LOOK.steel)
 
     for (const t of Object.values(this.helper)) this.park(t)
   }
@@ -538,7 +733,7 @@ export class TireChangerModel extends MachineModel {
   park(t: HelperTool) {
     t.arm.rotation.y = 2.3
     t.carrier.position.x = 0.4
-    t.slide.position.y = -0.18
+    t.slide.position.y = HOLD
   }
 
   /**
@@ -547,7 +742,7 @@ export class TireChangerModel extends MachineModel {
    */
   helperPose(t: HelperTool, target: THREE.Vector3) {
     const dx = target.x - HC.x, dz = target.z - HC.z
-    return { swing: Math.atan2(-dz, dx), reach: Math.hypot(dx, dz), drop: target.y - t.y }
+    return { swing: Math.atan2(-dz, dx), reach: Math.hypot(dx, dz), drop: target.y + t.ext - t.y }
   }
 
   /** Orienta l'asse del rullo in direzione radiale rispetto al piatto, così rotola sul fianco. */
@@ -621,7 +816,7 @@ export class TireChangerModel extends MachineModel {
   }
 
   /** Tubo dal manometro alla valvola del cerchio (ricostruito solo quando serve), con le sue particelle. */
-  setHose(to: THREE.Vector3 | null) {
+  setHose(to: THREE.Vector3 | null, above = 0) {
     if (this.hose) {
       this.hoseG.remove(this.hose)
       this.hose.geometry.dispose()
@@ -633,10 +828,14 @@ export class TireChangerModel extends MachineModel {
       }
     }
     if (!to) return
+    // il tubo scende dalla pistola, sale oltre il pneumatico e cala dentro il cerchio fino alla valvola
     const from = new THREE.Vector3(-0.32, 0.86, 0.3)
-    const mid = from.clone().lerp(to, 0.5)
-    mid.y = Math.max(from.y, to.y) + 0.05
-    const curve = new THREE.CatmullRomCurve3([from, from.clone().add(new THREE.Vector3(0.02, -0.05, 0.06)), mid, to.clone().add(new THREE.Vector3(0, 0.05, 0)), to])
+    const { tireR: Rt } = wheelGeometry(this.spec)
+    const axis = new THREE.Vector3(0, to.y, TT_Z)
+    const dv = to.clone().sub(axis).setY(0).normalize()
+    const out = axis.clone().addScaledVector(dv, Rt + 0.07).setY(above + 0.02)
+    const over = to.clone().setY(above + 0.06)
+    const curve = new THREE.CatmullRomCurve3([from, from.clone().add(new THREE.Vector3(0.02, -0.05, 0.06)), out, over, to.clone().add(new THREE.Vector3(0, 0.03, 0)), to])
     this.hose = new THREE.Mesh(new THREE.TubeGeometry(curve, 60, 0.006, 8), this.mat('gonfiaggio', LOOK.rubber, true))
     this.hoseG.add(this.hose)
     const dots: THREE.Mesh[] = []
@@ -654,6 +853,7 @@ export class TireChangerModel extends MachineModel {
 
   buildWheel(spec: WheelSpec) {
     this.spec = spec
+    this.solids = null
     this.clear(this.rimG)
     this.clear(this.tireG)
     const geo = wheelMeshes(spec)
@@ -662,25 +862,50 @@ export class TireChangerModel extends MachineModel {
     this.tireBase = (geo.tire.attributes.position.array as Float32Array).slice()
   }
 
+  /** Cerchio (canale e disco) e pneumatico come solidi per il controllo di compenetrazione. */
+  wheelSolids(): Solid[] {
+    if (this.solids?.spec === this.spec) return this.solids.list
+    const { rimR: R } = wheelGeometry(this.spec)
+    const e = this.spec.et
+    const disc: RX[] = [[0.0285, e], [R - 0.0055, e], [R - 0.0055, e + 0.016], [0.0285, e + 0.016]]
+    const list = [
+      { name: 'cerchio', frame: this.rimG, sections: [rimSection(this.spec), disc] },
+      { name: 'pneumatico', frame: this.tireMesh!, sections: [tireShell(this.spec)], unwarp: this.unwarp, slack: this.slack },
+    ]
+    this.solids = { spec: this.spec, list }
+    return list
+  }
+  private solids: { spec: WheelSpec; list: Solid[] } | null = null
+
+  /** Oggetti esclusi dal controllo: la ruota stessa e gli indicatori dei flussi. */
+  isWheelOrMarker(o: THREE.Object3D) {
+    return o === this.rimG || o === this.tireG || o === this.bladeArrow || !!o.userData.noPick
+  }
+
   /** Posizione della valvola nel mondo. */
   valveWorld() {
     const { rimR: R, width: w } = wheelGeometry(this.spec)
     this.root.updateMatrixWorld(true)
-    const r = R + 0.005
+    // estremità della valvola che sporge verso l'asse, dentro il canale
+    const r = R - 0.026
     return this.rimSpin.localToWorld(new THREE.Vector3(w / 2 - 0.02, r * Math.cos(2.4), r * Math.sin(2.4)))
   }
 
   /**
-   * Schiacciamento del fianco sotto paletta, rullo o disco: i vertici dalla parte
-   * dell'utensile vengono spinti verso il centro, di più vicino al punto di contatto.
+   * Deformazione del pneumatico: fianco schiacciato da paletta, rullo, disco e griffe
+   * (i vertici dalla parte dell'utensile vengono spinti verso il piano centrale) e
+   * talloni allargati attorno alla testina in montaggio e smontaggio.
    */
-  dent(contacts: { at: THREE.Vector3; depth: number }[]) {
+  deform(presses: Press[], bulge: Bulge | null) {
     const mesh = this.tireMesh, base = this.tireBase
     if (!mesh || !base) return
     const pos = mesh.geometry.attributes.position as THREE.BufferAttribute
     const arr = pos.array as Float32Array
-    const act = contacts.filter((c) => c.depth > 1e-4)
-    if (!act.length) {
+    const act = presses.filter((c) => c.depth > 1e-4)
+    const bu = bulge && (bulge.upper > 1e-3 || bulge.lower > 1e-3) ? bulge : null
+    if (!act.length && !bu) {
+      this.warp.cs = []
+      this.warp.bulge = null
       if (mesh.userData.dented) {
         arr.set(base)
         pos.needsUpdate = true
@@ -690,33 +915,147 @@ export class TireChangerModel extends MachineModel {
       return
     }
     this.root.updateMatrixWorld(true)
-    const { rimR: R, tireR: Rt } = wheelGeometry(this.spec)
+    const { rimR: R, tireR: Rt, tireW: Wt } = wheelGeometry(this.spec)
     const cs = act.map((c) => {
       const l = mesh.worldToLocal(c.at.clone())
-      return { side: Math.sign(l.x) || 1, phi: Math.atan2(l.z, l.y), rc: Math.max(Math.hypot(l.y, l.z), R + 0.02), depth: c.depth }
+      return { side: Math.sign(l.x) || 1, phi: Math.atan2(l.z, l.y), rc: Math.max(Math.hypot(l.y, l.z), R + 0.02), depth: c.depth, reach: c.reach ?? 0, half: c.half ?? 0 }
     })
-    for (let i = 0; i < arr.length; i += 3) {
-      const x = base[i], y = base[i + 1], z = base[i + 2]
-      const r = Math.hypot(y, z)
-      const phi = Math.atan2(z, y)
-      let dx = 0
-      for (const c of cs) {
-        if (x * c.side <= 0) continue
-        let d = phi - c.phi
-        d -= Math.PI * 2 * Math.round(d / (Math.PI * 2))
-        const fa = Math.exp(-((d / 0.42) ** 2))
-        if (fa < 0.01) continue
-        // il fianco cede vicino al tallone, molto meno verso il battistrada
-        const fr = r < c.rc ? 1 : Math.max(0, 1 - (r - c.rc) / (Rt - c.rc)) ** 1.6
-        const fb = r < R + 0.004 ? 0.6 : 1
-        const v = c.depth * fa * fr * fb
-        if (v > Math.abs(dx)) dx = -c.side * v
-      }
-      arr[i] = x + dx
+    let b = null
+    if (bu) {
+      const l = mesh.worldToLocal(bu.at.clone())
+      b = { phi: Math.atan2(l.z, l.y), upper: bu.upper, lower: bu.lower }
+    }
+    this.warp = { cs, bulge: b, R, Rt, Wt }
+    const d = new THREE.Vector3()
+    let polar = mesh.userData.polar as Float32Array | undefined
+    if (!polar) {
+      // raggio e angolo dei vertici a riposo, calcolati una volta sola
+      polar = new Float32Array((base.length / 3) * 2)
+      for (let i = 0, j = 0; i < base.length; i += 3, j += 2) { polar[j] = Math.hypot(base[i + 1], base[i + 2]); polar[j + 1] = Math.atan2(base[i + 2], base[i + 1]) }
+      mesh.userData.polar = polar
+    }
+    for (let i = 0, j = 0; i < arr.length; i += 3, j += 2) {
+      this.warpAt(base[i], base[i + 1], base[i + 2], d, polar[j], polar[j + 1])
+      arr[i] = base[i] + d.x
+      arr[i + 1] = base[i + 1] + d.y
+      arr[i + 2] = base[i + 2] + d.z
     }
     pos.needsUpdate = true
     mesh.geometry.computeVertexNormals()
     mesh.userData.dented = true
+  }
+
+  /** Spostamento di un punto del pneumatico indeformato (sistema del pneumatico) secondo la deformazione corrente. */
+  private warpAt(x: number, y: number, z: number, out: THREE.Vector3, r = Math.hypot(y, z), phi = Math.atan2(z, y)) {
+    const k = this.bulgeK(x, phi) * this.bulgeR(r)
+    const s = r > 1e-6 ? (BULGE_DR * k) / r : 0
+    return out.set(this.axial(x, r, phi), s * y, s * z)
+  }
+
+  /** Allargamento del tallone (senza il calo verso il battistrada) per un punto a quota x e angolo phi. */
+  private bulgeK(x: number, phi: number) {
+    const b = this.warp.bulge
+    if (!b) return 0
+    let a = phi - b.phi
+    a -= Math.PI * 2 * Math.round(a / (Math.PI * 2))
+    const t = Math.max(0, Math.abs(a) * this.warp.R - BULGE_HALF)
+    if (t > 0.2) return 0
+    // il lato del tallone superiore (+x) segue upper, quello inferiore lower
+    const sx = smooth01((x / (this.warp.Wt / 2) + 1) / 2)
+    return (b.lower + (b.upper - b.lower) * sx) * Math.exp(-((t / BULGE_FADE) ** 2))
+  }
+
+  /** Il tallone esce di più, il battistrada poco: calo lineare lungo il fianco (il fianco si piega senza ripiegarsi). */
+  private bulgeR(r: number) {
+    const { R, Rt } = this.warp
+    return 1 - (1 - BULGE_TREAD) * Math.min(Math.max((r - R) / (Rt - R), 0), 1)
+  }
+
+  /** Spostamento lungo l'asse: fianco schiacciato dagli utensili e tallone superiore sollevato attorno alla testina. */
+  private axial(x: number, r: number, phi: number) {
+    const { R, Rt, Wt } = this.warp
+    let dx = 0
+    for (const c of this.warp.cs) {
+      if (x * c.side <= 0) continue
+      let a = phi - c.phi
+      a -= Math.PI * 2 * Math.round(a / (Math.PI * 2))
+      // a pieno sotto l'utensile, poi raccordo lungo il tallone
+      const t = Math.max(0, Math.abs(a) * c.rc - c.half)
+      if (t > 0.22) continue
+      const fa = Math.exp(-((t / 0.1) ** 2))
+      // il fianco cede vicino al tallone, molto meno verso il battistrada
+      const rp = c.rc + c.reach
+      const fr = r < rp ? 1 : Math.max(0, 1 - (r - rp) / Math.max(Rt - rp, 0.01)) ** 1.6
+      const fb = r < R + 0.004 ? 0.6 : 1
+      const v = c.depth * fa * fr * fb
+      if (v > Math.abs(dx)) dx = -c.side * v
+    }
+    const b = this.warp.bulge
+    if (b && b.upper > 0) {
+      let a = phi - b.phi
+      a -= Math.PI * 2 * Math.round(a / (Math.PI * 2))
+      const t = Math.max(0, Math.abs(a) * R - BULGE_HALF)
+      if (t < 0.2) dx += BULGE_DX * b.upper * Math.exp(-((t / BULGE_FADE) ** 2)) * smooth01((x / (Wt / 2) + 1) / 2)
+    }
+    return dx
+  }
+
+  /** Spostamento massimo dei punti del pneumatico nella deformazione corrente. */
+  private slack = () => {
+    let m = 0
+    for (const c of this.warp.cs) m = Math.max(m, c.depth)
+    const b = this.warp.bulge
+    if (b) m = Math.max(m, BULGE_DR * Math.max(b.upper, b.lower) + BULGE_DX)
+    return m + 0.005
+  }
+
+  /** Riporta un punto del pneumatico deformato (sistema del pneumatico) alla forma indeformata. */
+  private unwarp = (p: THREE.Vector3) => {
+    if (!this.warp.cs.length && !this.warp.bulge) return
+    const { R, Rt } = this.warp
+    const rd = Math.hypot(p.y, p.z), phi = Math.atan2(p.z, p.y)
+    const c = (1 - BULGE_TREAD) / (Rt - R)
+    let x = p.x, r = rd
+    for (let i = 0; i < 4; i++) {
+      // raggio: rd = r + DR·K·(1 − c·(r − R)), lineare in r tra cerchio e battistrada
+      const D = BULGE_DR * this.bulgeK(x, phi)
+      r = (rd - D * (1 + c * R)) / (1 - D * c)
+      if (r < R) r = rd - D
+      else if (r > Rt) r = rd - D * BULGE_TREAD
+      x = p.x - this.axial(x, r, phi)
+    }
+    const f = rd > 1e-9 ? r / rd : 1
+    p.set(x, p.y * f, p.z * f)
+  }
+
+  /** Quota massima del fianco superiore sotto un utensile di raggio rho centrato in (x, z). */
+  surfaceMax(x: number, z: number, rho: number) {
+    let y = this.surfaceY(x, z)
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2
+      for (const f of [0.35, 0.7, 1]) y = Math.max(y, this.surfaceY(x + Math.cos(a) * rho * f, z + Math.sin(a) * rho * f))
+    }
+    return y
+  }
+
+  /** Quota del fianco superiore del pneumatico (non deformato) sulla verticale per (x, z). */
+  surfaceY(x: number, z: number) {
+    const m = this.tireMesh!
+    this.root.updateMatrixWorld(true)
+    const p = new THREE.Vector3()
+    let y = this.tireHolder.position.y
+    for (let i = 0; i < 4; i++) {
+      m.worldToLocal(p.set(x, y, z))
+      p.x = tireHalfWidth(this.spec, Math.hypot(p.y, p.z))
+      y = m.localToWorld(p).y
+    }
+    return y
+  }
+
+  /** Punto del mondo nel sistema del pneumatico (indeformato): raggio e posizione lungo l'asse. */
+  tireLocal(p: THREE.Vector3) {
+    const l = this.tireMesh!.worldToLocal(p.clone())
+    return { r: Math.hypot(l.y, l.z), x: l.x }
   }
 
   /** Tallonamento: prima del salto in sede il pneumatico è leggermente rientrato. */
@@ -738,10 +1077,12 @@ export class TireChangerModel extends MachineModel {
   protected afterExplode(t: number) {
     this.airG.visible = t < 0.02 && !this.parts.get('valvole')?.hidden
     this.colAir.visible = t < 0.02
+    this.cableG.visible = t < 0.02 && !this.parts.get('pulsantiera')?.hidden
     this.updateRams()
   }
 
   protected afterHidden(id: string, hidden: boolean) {
     if (id === 'valvole') this.airG.visible = !hidden && this.explodeT < 0.02
+    if (id === 'pulsantiera') this.cableG.visible = !hidden && this.explodeT < 0.02
   }
 }

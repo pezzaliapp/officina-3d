@@ -31,13 +31,15 @@ Entrambe si possono ruotare, sezionare e smontare pezzo per pezzo.
 
 ## Smontagomme
 
-Pezzi: mobile, piatto autocentrante con 4 griffe e i loro due cilindri, palo ribaltabile con cilindro di ribaltamento, braccio orizzontale, asta esagonale con bloccaggio pneumatico, utensile di montaggio, leva alzatallone, stallonatore a paletta con il suo cilindro, tamponi, pedaliera (rotazione, griffe, stallonatore, palo), distributori, gruppo filtro-regolatore-lubrificatore, gruppo di gonfiaggio con manometro e pistola, riduttore a vite senza fine, cinghia e motore.
+Pezzi: mobile, piatto autocentrante con 4 griffe e i loro due cilindri, palo ribaltabile con cilindro di ribaltamento, braccio orizzontale, asta esagonale con bloccaggio pneumatico, utensile di montaggio, leva alzatallone, stallonatore con braccio a gomito e lama curva in acciaio, il suo cilindro, la pulsantiera elettrica e l'elettrovalvola, tamponi, pedaliera (rotazione, griffe, palo), distributori, gruppo filtro-regolatore-lubrificatore, gruppo di gonfiaggio con manometro e pistola, riduttore a vite senza fine, cinghia e motore.
+
+**Stallonatore**: il braccio esce dal fianco del mobile dietro la ruota e corre in avanti fuori dal pneumatico, così solo la lama tocca il fianco, vicino alla balconata. Si comanda dalla pulsantiera sul fianco: STALLONA fa avvicinare la lama, spinge finché il tallone si stacca e riporta indietro il braccio da sola; RITORNO lo riapre subito; ARRESTO ferma tutto e scarica il cilindro. In sezione si vedono i segnali elettrici che corrono nei cavi verso le bobine dell'elettrovalvola e l'aria che va nell'una o nell'altra camera del cilindro.
 
 **Braccio di aiuto (helper)**: colonna propria sul fianco del mobile, bracci girevoli, un cilindro pneumatico per ogni utensile, comando dedicato. Utensili: rullo pressore, disco premitallone e cono di centraggio.
 
 Il ciclo si esegue un passo alla volta o tutto insieme:
 
-1. **Stallonatura** sui due fianchi: la pressione nel cilindro sale, la paletta schiaccia il fianco (il pneumatico si deforma) finché la forza supera la tenuta del tallone.
+1. **Stallonatura** sui due fianchi, dalla pulsantiera: la pressione nel cilindro sale, la lama schiaccia il fianco (il pneumatico si deforma) finché la forza supera la tenuta del tallone; poi la ruota si stacca dai tamponi, si gira e si fa l'altro fianco.
 2. **Bloccaggio**: la ruota va sul piatto, il cono di centraggio la preme dal centro, le griffe chiudono.
 3. **Smontaggio**: il disco completa lo stallonamento dall'alto, il rullo tiene il tallone nel canale dal lato opposto all'utensile, la leva porta il tallone sopra la lingua e il piatto gira.
 4. **Montaggio**: rullo e disco tengono il tallone superiore nel canale mentre il piatto gira (indispensabile con ribassati e run-flat; si può disattivare l'helper per confronto).
@@ -65,7 +67,12 @@ npm run dev      # server di sviluppo
 npm run build    # controllo dei tipi e build in dist/
 npm run preview  # anteprima della build
 npm run icons    # rigenera le icone PNG della PWA
+npm run verifica # verifica automatica delle due macchine, senza browser
 ```
+
+### Controllo di compenetrazione
+
+Lo smontagomme controlla durante il ciclo che nessun pezzo della macchina entri nella ruota: campiona le superfici dei pezzi e prova i punti contro le sezioni di cerchio e pneumatico (tenendo conto di dove il pneumatico è schiacciato dagli utensili). Nel browser segnala in console ogni compenetrazione con passo, pezzo e profondità. `npm run verifica` esegue il ciclo completo su tutte le misure di ruota, con e senza braccio di aiuto, prova la pulsantiera e controlla che l'equilibratrice misuri ancora lo squilibrio giusto.
 
 Tecnologie: TypeScript, [three.js](https://threejs.org/) e [Vite](https://vitejs.dev/). Tutta la geometria è procedurale, senza file 3D. Nessun servizio esterno, nessun tracciamento, solo font di sistema.
 
@@ -85,9 +92,11 @@ src/
   core/section.ts         sezione con tratteggio delle superfici tagliate
   core/geo.ts             solidi di rivoluzione e altre geometrie
   core/wheel.ts           misure e geometria di cerchio e pneumatico
+  core/interference.ts    controllo di compenetrazione tra macchina e ruota
   equilibratrice/         modello, fisica, ciclo di misura, display, schede delle parti
   smontagomme/            modello con helper, fisica pneumatica, ciclo di lavoro, schede delle parti
 public/                   manifest, service worker e icone della PWA
+tools/verifica.ts         verifica automatica (npm run verifica)
 ```
 
 ## Licenza
