@@ -20,35 +20,9 @@ export const abs = (a: C) => Math.hypot(a.re, a.im)
 export const arg = (a: C) => Math.atan2(a.im, a.re)
 export const polar = (m: number, a: number): C => cx(m * Math.cos(a), m * Math.sin(a))
 
-export interface WheelSpec {
-  id: string
-  /** Misura come scritta sul fianco, es. 205/55 R16. */
-  label: string
-  tireWidth: number // mm
-  aspect: number // %
-  rimInch: number
-  rimWidthInch: number
-  /** Massa ruota completa, kg (indicativa). */
-  mass: number
-  /** Raggio d'inerzia, m (indicativo). */
-  gyration: number
-  /** Offset del cerchio ET, m. */
-  et: number
-}
-
-export const WHEELS: WheelSpec[] = [
-  { id: 's', label: '175/65 R14', tireWidth: 175, aspect: 65, rimInch: 14, rimWidthInch: 5.5, mass: 14, gyration: 0.21, et: 0.035 },
-  { id: 'm', label: '205/55 R16', tireWidth: 205, aspect: 55, rimInch: 16, rimWidthInch: 6.5, mass: 19, gyration: 0.23, et: 0.045 },
-  { id: 'l', label: '225/40 R18', tireWidth: 225, aspect: 40, rimInch: 18, rimWidthInch: 8, mass: 22, gyration: 0.25, et: 0.045 },
-]
-
-/** Dimensioni geometriche ricavate dalla sigla del pneumatico (norma ETRTO). */
-export function wheelGeometry(w: WheelSpec) {
-  const rimR = (w.rimInch * 0.0254) / 2
-  const width = w.rimWidthInch * 0.0254
-  const tireR = rimR + (w.tireWidth / 1000) * (w.aspect / 100)
-  return { rimR, width, tireR, tireW: w.tireWidth / 1000 }
-}
+import { WheelSpec, WHEELS, wheelGeometry } from '../core/wheel'
+export { WHEELS, wheelGeometry }
+export type { WheelSpec }
 
 /** Posizioni lungo l'albero (m, x = 0 sul fianco del mobile). */
 export const LAYOUT = {

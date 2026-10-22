@@ -1,11 +1,6 @@
-/** Schede delle parti: nome e spiegazione mostrati nel pannello. */
-export interface PartInfo {
-  name: string
-  text: string
-  /** Dati tecnici; quelli marcati con indicativo: true non provengono da una fonte. */
-  data?: { k: string; v: string; indicativo?: boolean }[]
-}
+import type { PartInfo } from '../core/machine'
 
+/** Schede delle parti dell'equilibratrice. */
 export const PARTS: Record<string, PartInfo> = {
   mobile: {
     name: 'Mobile',

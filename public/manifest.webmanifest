@@ -1,7 +1,7 @@
 {
   "name": "Officina 3D",
   "short_name": "Officina 3D",
-  "description": "Macchine da officina in 3D: equilibratrice per ruote auto da ruotare, sezionare e smontare.",
+  "description": "Macchine da officina in 3D: equilibratrice e smontagomme da ruotare, sezionare e smontare.",
   "lang": "it",
   "start_url": "./",
   "scope": "./",

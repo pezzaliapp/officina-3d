@@ -67,14 +67,14 @@ export function createStage(host: HTMLElement) {
 }
 
 /** Inquadratura iniziale: la distanza si adatta alla larghezza dello schermo. */
-export function homeView(camera: THREE.PerspectiveCamera, controls: OrbitControls) {
+export function homeView(camera: THREE.PerspectiveCamera, controls: OrbitControls, view: { target: [number, number, number]; halfWidth: number }) {
   const aspect = window.innerWidth / window.innerHeight
   camera.fov = aspect < 1 ? 50 : 38
   camera.updateProjectionMatrix()
   const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect
-  const target = new THREE.Vector3(-0.08, 0.6, 0)
+  const target = new THREE.Vector3(...view.target)
   const dir = new THREE.Vector3(1.0, 0.5, 1.2).normalize()
-  camera.position.copy(target).addScaledVector(dir, Math.max(2.5, 0.85 / halfW))
+  camera.position.copy(target).addScaledVector(dir, Math.max(view.halfWidth * 2.9, view.halfWidth / halfW))
   controls.target.copy(target)
   controls.update()
 }

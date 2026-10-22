@@ -4,14 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0f1216" />
-    <meta name="description" content="Equilibratrice per ruote auto in 3D: ruotala, sezionala, smontala e misura lo squilibrio." />
+    <meta name="description" content="Macchine da officina in 3D: equilibratrice e smontagomme da ruotare, sezionare e smontare, con la fisica reale." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Officina 3D" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon-192.png" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <title>Officina 3D · Equilibratrice</title>
+    <title>Officina 3D</title>
   </head>
   <body>
     <div id="scena"></div>
@@ -21,7 +21,12 @@
         <img src="icon.svg" alt="" width="28" height="28" />
         <div>
           <strong>Officina 3D</strong>
-          <span>Equilibratrice per ruote auto</span>
+          <label class="scegli"><span class="sr">Macchina</span>
+            <select id="sel-macchina">
+              <option value="equilibratrice">Equilibratrice per ruote auto</option>
+              <option value="smontagomme">Smontagomme</option>
+            </select>
+          </label>
         </div>
       </div>
       <button id="btn-info" class="tondo" aria-label="Informazioni">?</button>
@@ -36,31 +41,13 @@
     <aside id="pannello" class="pannello">
       <button id="maniglia" class="maniglia" aria-label="Apri o chiudi il pannello"><span></span></button>
       <nav class="schede" role="tablist">
-        <button role="tab" data-tab="misura" class="attiva">Misura</button>
+        <button role="tab" data-tab="lavoro" id="tab-lavoro" class="attiva">Lavoro</button>
         <button role="tab" data-tab="vista">Vista</button>
         <button role="tab" data-tab="parti">Parti</button>
         <button role="tab" data-tab="fisica">Fisica</button>
       </nav>
 
-      <section data-pane="misura" class="pane attiva">
-        <p id="messaggio" class="messaggio">Premi Avvia misura</p>
-        <div class="risultati">
-          <div><small>Interno</small><b id="r-int">---</b></div>
-          <div><small>Esterno</small><b id="r-est">---</b></div>
-        </div>
-        <div class="riga">
-          <button id="btn-misura" class="primario">▶ Avvia misura</button>
-          <button id="btn-pesi" disabled>Applica pesi</button>
-        </div>
-        <div class="riga">
-          <label class="campo">Ruota
-            <select id="sel-ruota"></select>
-          </label>
-          <button id="btn-nuova">Nuova ruota</button>
-        </div>
-        <canvas id="scope" class="scope" width="600" height="160" aria-label="Segnali dei sensori A e B"></canvas>
-        <p class="legenda"><i class="a"></i> sensore A <i class="b"></i> sensore B · forza orizzontale (N)</p>
-      </section>
+      <section data-pane="lavoro" id="pane-lavoro" class="pane attiva"></section>
 
       <section data-pane="vista" class="pane">
         <label class="slider">Sezione <output id="o-sez">0%</output>
@@ -70,10 +57,9 @@
           <input id="in-esp" type="range" min="0" max="100" value="0" />
         </label>
         <div class="riga">
-          <button id="btn-carter">Alza / abbassa carter</button>
           <button id="btn-vista">Vista iniziale</button>
         </div>
-        <label class="spunta"><input id="in-flussi" type="checkbox" checked /> Flussi animati: forze, segnali, cinghia</label>
+        <label class="spunta"><input id="in-flussi" type="checkbox" checked /> Flussi animati: forze, segnali, aria, cinghie</label>
         <label class="spunta"><input id="in-giro" type="checkbox" /> Rotazione automatica della vista</label>
       </section>
 
@@ -86,22 +72,17 @@
 
       <section data-pane="fisica" class="pane">
         <div id="fisica-live" class="tabella"></div>
+        <div id="fisica-testo" class="testo"></div>
         <div class="testo">
-          <h3>Perché una ruota vibra</h3>
-          <p>Se la massa non è distribuita in modo uniforme attorno all'asse, il punto pesante tira verso l'esterno con la forza centrifuga <code>F = m · r · ω²</code>. La forza cresce col quadrato della velocità: 10 g sul bordo di un cerchio da 16" a 100 km/h tirano con circa 17 N, e la direzione gira con la ruota.</p>
-          <h3>Statico e dinamico</h3>
-          <p>Lo squilibrio statico fa sobbalzare la ruota; quello dinamico (una coppia di masse su lati opposti) la fa sbandierare anche se staticamente è a posto. Per correggerli entrambi servono due pesi, uno per piano.</p>
-          <h3>Come misura la macchina</h3>
-          <p>L'albero è una trave su due appoggi: i sensori A e B. Con le equazioni di equilibrio di forze e momenti, dalle due forze lette e dalle distanze dei piani (calibro <i>a</i>, larghezza <i>b</i>) si ricavano i due squilibri. L'encoder dà la fase, quindi l'angolo in cui mettere ciascun peso, dalla parte opposta allo squilibrio.</p>
-          <p class="nota">I valori marcati <span class="ind">indicativo</span> non provengono da una scheda tecnica: sono stime plausibili usate per la simulazione. Le dimensioni della ruota derivano invece dalla sigla del pneumatico.</p>
+          <p class="nota">I valori marcati <span class="ind">indicativo</span> non provengono da una scheda tecnica: sono stime plausibili usate per la simulazione. Le dimensioni delle ruote derivano invece dalla sigla del pneumatico.</p>
         </div>
       </section>
     </aside>
 
     <dialog id="info" class="info">
       <h2>Officina 3D</h2>
-      <p>Macchine da officina da esplorare nel browser. Questa è un'equilibratrice per ruote auto: trascina per ruotare, pizzica o usa la rotella per lo zoom, tocca un pezzo per sapere cos'è.</p>
-      <p>Tutta la geometria è generata dal codice, senza modelli 3D esterni. La misura dello squilibrio usa la fisica reale: forza centrifuga, trave su due appoggi, demodulazione sincrona dei segnali.</p>
+      <p>Macchine da officina da esplorare nel browser: un'equilibratrice e uno smontagomme per ruote auto. Scegli la macchina in alto, trascina per ruotare, pizzica o usa la rotella per lo zoom, tocca un pezzo per sapere cos'è.</p>
+      <p>Tutta la geometria è generata dal codice, senza modelli 3D esterni. I cicli di lavoro usano la fisica reale: forza centrifuga e trave su due appoggi per la misura dello squilibrio, pressione per area e leve per lo stallonatore, coppia del riduttore e legge dei gas nel gonfiaggio.</p>
       <p>Funziona anche offline: dal menu del browser scegli <b>Aggiungi a schermata Home</b>.</p>
       <p class="nota">© 2026 Alessandro Pezzali · Licenza MIT</p>
       <form method="dialog"><button class="primario">Chiudi</button></form>

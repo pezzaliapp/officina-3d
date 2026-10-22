@@ -1,7 +1,9 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { Section } from '../core/section'
-import { revolveX, shell, cylX, tubeX, box, beltPath, RX } from '../core/geo'
+import { MachineModel, LOOK } from '../core/model'
+import { wheelMeshes } from '../core/wheel'
+import { revolveX, cylX, tubeX, box, beltPath, RX } from '../core/geo'
 import { LAYOUT, WheelSpec, wheelGeometry, Weight } from './physics'
 
 /** Altezza dell'asse dell'albero da terra, m. */
@@ -9,35 +11,9 @@ export const AXIS_Y = 0.78
 /** Cerniera del carter rispetto all'asse dell'albero (y, z). */
 const GUARD_PIVOT = [-0.03, -0.43] as const
 
-interface Look { c: number; m: number; r: number; h: number }
-const LOOK = {
-  paint: { c: 0x2f343c, m: 0.35, r: 0.45, h: 0x8a93a0 },
-  accent: { c: 0xd23a2a, m: 0.3, r: 0.4, h: 0x8a93a0 },
-  steel: { c: 0xc3c8cf, m: 1, r: 0.28, h: 0xd9482b },
-  dark: { c: 0x5d636c, m: 0.9, r: 0.4, h: 0xd9482b },
-  alu: { c: 0xd5d9de, m: 1, r: 0.22, h: 0xe0892b },
-  rubber: { c: 0x1d1e21, m: 0, r: 0.88, h: 0x4a4d55 },
-  plastic: { c: 0x2a2d33, m: 0, r: 0.55, h: 0x3a7bd5 },
-  grey: { c: 0x8d939b, m: 0.1, r: 0.6, h: 0x3a7bd5 },
-  board: { c: 0x1d6b3c, m: 0.1, r: 0.55, h: 0x3a7bd5 },
-  chip: { c: 0x15161a, m: 0.2, r: 0.5, h: 0x3a7bd5 },
-  copper: { c: 0xc4753a, m: 1, r: 0.35, h: 0xe0892b },
-  brass: { c: 0xd8ad45, m: 0.9, r: 0.3, h: 0xe0892b },
-  ceramic: { c: 0xece6da, m: 0, r: 0.4, h: 0xe0892b },
-  lead: { c: 0x9aa0a8, m: 0.7, r: 0.5, h: 0xe0892b },
-} satisfies Record<string, Look>
-
-export interface Part {
-  id: string
-  pieces: { obj: THREE.Object3D; off: THREE.Vector3 }[]
-  mats: THREE.MeshStandardMaterial[]
-  hidden: boolean
-}
-
 interface Cable { curve: THREE.CatmullRomCurve3; dots: THREE.Mesh[]; kind: 'sensore' | 'encoder' | 'display' }
 
-export class BalancerModel {
-  readonly root = new THREE.Group()
+export class BalancerModel extends MachineModel {
   /** Gruppo fisso centrato sull'asse dell'albero. */
   readonly axis = new THREE.Group()
   /** Tutto ciò che gira con la ruota (rotazione attorno a X). */
@@ -45,20 +21,18 @@ export class BalancerModel {
   readonly wheel = new THREE.Group()
   readonly guard = new THREE.Group()
   readonly calSlide = new THREE.Group()
-  readonly parts = new Map<string, Part>()
   readonly screen: THREE.Mesh
   readonly piezo: THREE.MeshStandardMaterial[] = []
   readonly beltMap: THREE.CanvasTexture
   readonly cables: Cable[] = []
   readonly arrows: THREE.ArrowHelper[] = []
-  private readonly matCache = new Map<string, THREE.MeshStandardMaterial>()
   private tireG!: THREE.Group
   private rimG!: THREE.Group
   private weightG!: THREE.Group
   private cablesG = new THREE.Group()
-  private explodeT = 0
 
-  constructor(private section: Section, screenTex: THREE.Texture) {
+  constructor(section: Section, screenTex: THREE.Texture) {
+    super(section)
     this.axis.position.y = AXIS_Y
     this.root.add(this.axis)
     this.axis.add(this.rotor, this.guard)
@@ -74,40 +48,6 @@ export class BalancerModel {
     this.gauge()
     this.cover()
     this.wheelParts()
-  }
-
-  // ---------- registro delle parti ----------
-
-  private part(id: string) {
-    let p = this.parts.get(id)
-    if (!p) this.parts.set(id, (p = { id, pieces: [], mats: [], hidden: false }))
-    return p
-  }
-
-  private piece(id: string, off: [number, number, number], parent: THREE.Object3D = this.root) {
-    const g = new THREE.Group()
-    g.userData.part = id
-    g.userData.front = off[2] > 0
-    parent.add(g)
-    this.part(id).pieces.push({ obj: g, off: new THREE.Vector3(...off) })
-    return g
-  }
-
-  private mat(id: string, look: Look, front = false) {
-    const key = id + ':' + look.c + (front ? ':f' : '')
-    let m = this.matCache.get(key)
-    if (!m) {
-      m = this.section.register(new THREE.MeshStandardMaterial({ color: look.c, metalness: look.m, roughness: look.r }), look.h, front ? this.section.front : this.section.plane)
-      this.matCache.set(key, m)
-      this.part(id).mats.push(m)
-    }
-    return m
-  }
-
-  private mesh(g: THREE.Object3D, geo: THREE.BufferGeometry, look: Look) {
-    const m = new THREE.Mesh(geo, this.mat(g.userData.part, look, g.userData.front))
-    g.add(m)
-    return m
   }
 
   // ---------- mobile ----------
@@ -167,9 +107,8 @@ export class BalancerModel {
       const disc = (z0: number, z1: number, r: number) => new THREE.CylinderGeometry(r, r, z1 - z0, 28).rotateX(Math.PI / 2).translate(x, 0, (z0 + z1) / 2)
       this.mesh(sg, disc(-0.11, -0.092, 0.017), LOOK.brass)
       this.mesh(sg, disc(-0.068, -0.05, 0.017), LOOK.brass)
-      const cer = new THREE.Mesh(disc(-0.092, -0.068, 0.014), this.section.register(
-        new THREE.MeshStandardMaterial({ color: LOOK.ceramic.c, roughness: 0.4, emissive: 0x29d3ff, emissiveIntensity: 0 }), LOOK.ceramic.h))
-      this.part('sensori').mats.push(cer.material as THREE.MeshStandardMaterial)
+      const cer = new THREE.Mesh(disc(-0.092, -0.068, 0.014), this.custom('sensori',
+        new THREE.MeshStandardMaterial({ color: LOOK.ceramic.c, roughness: 0.4, emissive: 0x29d3ff, emissiveIntensity: 0 }), LOOK.ceramic.h, true))
       this.piezo.push(cer.material as THREE.MeshStandardMaterial)
       sg.add(cer)
     }
@@ -310,8 +249,7 @@ export class BalancerModel {
     map.colorSpace = THREE.SRGBColorSpace
     const curve = beltPath(new THREE.Vector2(AXIS_Y, 0), 0.078, new THREE.Vector2(my, mz), 0.028, xp)
     const belt = this.piece('cinghia', [-0.14, 0, 0])
-    const bm = this.section.register(new THREE.MeshStandardMaterial({ map, roughness: 0.85 }), LOOK.rubber.h)
-    this.part('cinghia').mats.push(bm)
+    const bm = this.custom('cinghia', new THREE.MeshStandardMaterial({ map, roughness: 0.85 }), LOOK.rubber.h)
     belt.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 240, 0.006, 6, true), bm))
     belt.userData.length = curve.getLength()
     return map
@@ -330,8 +268,7 @@ export class BalancerModel {
 
     // Cavi: sensori → scheda, encoder → scheda, scheda → display.
     this.root.add(this.cablesG)
-    const cm = this.section.register(new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.6 }), 0x3a7bd5)
-    this.part('scheda').mats.push(cm)
+    const cm = this.custom('scheda', new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.6 }), 0x3a7bd5)
     const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z)
     const paths: [THREE.Vector3[], Cable['kind']][] = [
       [[V(LAYOUT.sensorA, AXIS_Y + 0.09, -0.125), V(LAYOUT.sensorA, AXIS_Y + 0.12, -0.2), V(-0.32, 0.62, -0.27), V(-0.34, 0.512, -0.275)], 'sensore'],
@@ -403,89 +340,15 @@ export class BalancerModel {
     }
   }
 
-  private clear(g: THREE.Group) {
-    for (const c of [...g.children]) {
-      g.remove(c)
-      ;(c as THREE.Mesh).geometry?.dispose()
-    }
-  }
-
   /** Ricostruisce cerchio e pneumatico per la misura scelta. */
   buildWheel(spec: WheelSpec) {
-    const { rimR: R, width: w, tireR: Rt, tireW: Wt } = wheelGeometry(spec)
-    const h = w / 2
     this.wheel.position.x = LAYOUT.flangeFace - spec.et
     this.clear(this.rimG)
     this.clear(this.tireG)
 
-    // Cerchio: profilo del canale a spessore costante, simmetrico sulle due balconate.
-    const fl: RX[] = [[R + 0.016, -h - 0.009], [R + 0.019, -h - 0.004], [R + 0.015, -h + 0.001], [R + 0.004, -h + 0.003], [R, -h + 0.01]]
-    const mid: RX[] = [[R, -h + 0.18 * w], [R - 0.024, -h + 0.26 * w], [R - 0.024, -h + 0.55 * w], [R, -h + 0.65 * w]]
-    const mir = fl.map(([r, x]) => [r, -x] as RX).reverse()
-    this.mesh(this.rimG, revolveX(shell([...fl, ...mid, ...mir], 0.0045), 96), LOOK.alu)
-
-    // Disco a 5 razze con foro centrale e fori bulloni.
-    const ds = new THREE.Shape()
-    ds.absarc(0, 0, R - 0.0055, 0, Math.PI * 2, false)
-    const cb = new THREE.Path(); cb.absarc(0, 0, 0.0285, 0, Math.PI * 2, true); ds.holes.push(cb)
-    const ri = 0.07, ro = R - 0.032, half = Math.PI / 5 - 0.2
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2 + Math.PI / 5
-      const p = new THREE.Path()
-      p.absarc(0, 0, ro, a - half, a + half, false)
-      p.absarc(0, 0, ri, a + half * 0.75, a - half * 0.75, true)
-      p.closePath()
-      ds.holes.push(p)
-      const b = new THREE.Path()
-      const ab = (i / 5) * Math.PI * 2
-      b.absarc(Math.cos(ab) * 0.056, Math.sin(ab) * 0.056, 0.007, 0, Math.PI * 2, true)
-      ds.holes.push(b)
-    }
-    const dg = new THREE.ExtrudeGeometry(ds, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 40 })
-    dg.rotateY(Math.PI / 2).translate(spec.et + 0.002, 0, 0)
-    this.mesh(this.rimG, dg, LOOK.alu)
-    for (let i = 0; i < 5; i++) {
-      const ab = (i / 5) * Math.PI * 2
-      this.mesh(this.rimG, cylX(0.0095, spec.et + 0.014, spec.et + 0.03, 6).translate(0, Math.sin(ab) * 0.056, -Math.cos(ab) * 0.056), LOOK.steel)
-    }
-    this.mesh(this.rimG, new THREE.CylinderGeometry(0.004, 0.005, 0.03, 10).translate(0, R - 0.01, 0).rotateX(2.4).translate(h - 0.02, 0, 0), LOOK.dark)
-
-    // Pneumatico: sezione cava con fianchi bombati, spalla arrotondata e scanalature.
-    const side: RX[] = []
-    const rs0 = R + 0.022, rs1 = Rt - 0.025
-    for (let i = 0; i <= 14; i++) {
-      const t = i / 14
-      const x = t <= 0.55
-        ? h + 0.006 + (Wt / 2 - h - 0.006) * Math.sin((Math.PI / 2) * (t / 0.55))
-        : Wt / 2 - 0.015 * ((t - 0.55) / 0.45) ** 2
-      side.push([rs0 + t * (rs1 - rs0), x])
-    }
-    for (let i = 1; i <= 8; i++) {
-      const th = (i / 8) * (Math.PI / 2)
-      side.push([Rt - 0.025 + 0.025 * Math.sin(th), Wt / 2 - 0.04 + 0.025 * Math.cos(th)])
-    }
-    const bead: RX[] = [[R + 0.001, h - 0.012], [R + 0.001, h - 0.002], [R + 0.012, h - 0.001]]
-    const outSide = [...bead, ...side]
-    const tread: RX[] = []
-    const xt = Wt / 2 - 0.04
-    for (let i = 1; i < 60; i++) {
-      const x = xt - (2 * xt * i) / 60
-      tread.push([Rt - 0.003 * (x / xt) ** 2, x])
-    }
-    const smooth: RX[] = [...outSide.map(([r, x]) => [r, -x] as RX), ...tread.reverse(), ...[...outSide].reverse()]
-    // percorso dalla tallonatura esterna (+x) verso quella interna: lo ordiniamo da -x a +x
-    smooth.reverse()
-    const inner = offset(smooth, 0.011, [(R + Rt) / 2, 0])
-    inner[0] = [R + 0.001, smooth[0][1] + (smooth[0][1] > 0 ? -0.012 : 0.012)]
-    const L = inner.length - 1
-    inner[L] = [R + 0.001, smooth[L][1] + (smooth[L][1] > 0 ? -0.012 : 0.012)]
-    const grooves = [-0.32, -0.11, 0.11, 0.32].map((k) => k * Wt)
-    const outerP = smooth.map(([r, x]) => {
-      if (r < Rt - 0.004) return [r, x] as RX
-      const g = grooves.some((gx) => Math.abs(x - gx) < 0.005)
-      return [g ? r - 0.008 : r, x] as RX
-    })
-    this.mesh(this.tireG, revolveX([...outerP, ...inner.reverse(), outerP[0]], 120), LOOK.rubber)
+    const geo = wheelMeshes(spec)
+    for (const r of geo.rim) this.mesh(this.rimG, r.geo, LOOK[r.look])
+    this.mesh(this.tireG, geo.tire, LOOK.rubber)
     this.setWeights([], spec)
   }
 
@@ -514,61 +377,11 @@ export class BalancerModel {
     })
   }
 
-  explode(t: number) {
-    this.explodeT = t
-    for (const p of this.parts.values())
-      for (const pc of p.pieces) pc.obj.position.copy(pc.off).multiplyScalar(t)
-    this.cablesG.visible = t < 0.02
+  protected afterExplode(t: number) {
+    this.cablesG.visible = t < 0.02 && !this.parts.get('scheda')?.hidden
   }
-  get exploded() { return this.explodeT }
 
-  setHidden(id: string, hidden: boolean) {
-    const p = this.parts.get(id)
-    if (!p) return
-    p.hidden = hidden
-    for (const pc of p.pieces) pc.obj.visible = !hidden
+  protected afterHidden(id: string, hidden: boolean) {
     if (id === 'scheda') this.cablesG.visible = !hidden && this.explodeT < 0.02
   }
-
-  highlight(id: string | null) {
-    for (const p of this.parts.values())
-      for (const m of p.mats) {
-        if (this.piezo.includes(m)) continue
-        m.emissive.setHex(p.id === id ? 0x2f6bff : 0x000000)
-        m.emissiveIntensity = p.id === id ? 0.45 : 0
-      }
-  }
-
-  /** Parte sotto il raggio, risalendo la gerarchia fino a un gruppo con userData.part. */
-  pick(ray: THREE.Raycaster): string | null {
-    const hits = ray.intersectObject(this.root, true)
-    for (const h of hits) {
-      if (h.object.userData.noPick || !visibleChain(h.object)) continue
-      // scarta ciò che il piano di sezione ha tolto
-      const plane = ((h.object as THREE.Mesh).material as THREE.Material).clippingPlanes?.[0]
-      if (!this.section.keeps(h.point, plane)) continue
-      let o: THREE.Object3D | null = h.object
-      while (o && !o.userData.part) o = o.parent
-      if (o) return o.userData.part
-    }
-    return null
-  }
-}
-
-function visibleChain(o: THREE.Object3D | null): boolean {
-  for (; o; o = o.parent) if (!o.visible) return false
-  return true
-}
-
-/** Sposta una polilinea (r, x) di t verso il punto interno indicato. */
-function offset(p: RX[], t: number, inside: RX): RX[] {
-  return p.map((pt, i) => {
-    const a = p[Math.max(i - 1, 0)], b = p[Math.min(i + 1, p.length - 1)]
-    let tr = b[0] - a[0], tx = b[1] - a[1]
-    const l = Math.hypot(tr, tx) || 1
-    tr /= l; tx /= l
-    let nr = -tx, nx = tr
-    if (nr * (inside[0] - pt[0]) + nx * (inside[1] - pt[1]) < 0) { nr = -nr; nx = -nx }
-    return [pt[0] + nr * t, pt[1] + nx * t]
-  })
 }

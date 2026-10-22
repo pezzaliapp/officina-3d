@@ -1,5 +1,5 @@
 // Service worker: l'app funziona anche offline dopo la prima visita.
-const CACHE = 'officina-3d-v1'
+const CACHE = 'officina-3d-v2'
 const BASE = new URL('./', self.location).pathname
 const CORE = ['', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'].map((p) => BASE + p)
 
