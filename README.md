@@ -3,7 +3,7 @@
 Macchine da officina da esplorare nel browser, anche dal telefono.
 La prima è un'**equilibratrice per ruote auto**: si può ruotare, sezionare e smontare, e misura davvero lo squilibrio della ruota.
 
-**Prova l'app:** https://pezzaliapp.github.io/officina-3d/
+**Prova l'app:** https://www.alessandropezzali.it/officina-3d/
 
 ## Cosa si può fare
 

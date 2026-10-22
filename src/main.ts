@@ -87,7 +87,9 @@ ui.sez.addEventListener('input', () => {
 ui.esp.addEventListener('input', () => {
   // dolce all'inizio e alla fine
   const t = +ui.esp.value / 100
-  model.explode(t * t * (3 - 2 * t))
+  const e = t * t * (3 - 2 * t)
+  model.explode(e)
+  section.setExplode(e)
   ui.oEsp.textContent = ui.esp.value + '%'
   dirty = true
 })

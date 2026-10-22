@@ -87,16 +87,17 @@ export class BalancerModel {
   private piece(id: string, off: [number, number, number], parent: THREE.Object3D = this.root) {
     const g = new THREE.Group()
     g.userData.part = id
+    g.userData.front = off[2] > 0
     parent.add(g)
     this.part(id).pieces.push({ obj: g, off: new THREE.Vector3(...off) })
     return g
   }
 
-  private mat(id: string, look: Look) {
-    const key = id + ':' + look.c
+  private mat(id: string, look: Look, front = false) {
+    const key = id + ':' + look.c + (front ? ':f' : '')
     let m = this.matCache.get(key)
     if (!m) {
-      m = this.section.register(new THREE.MeshStandardMaterial({ color: look.c, metalness: look.m, roughness: look.r }), look.h)
+      m = this.section.register(new THREE.MeshStandardMaterial({ color: look.c, metalness: look.m, roughness: look.r }), look.h, front ? this.section.front : this.section.plane)
       this.matCache.set(key, m)
       this.part(id).mats.push(m)
     }
@@ -104,7 +105,7 @@ export class BalancerModel {
   }
 
   private mesh(g: THREE.Object3D, geo: THREE.BufferGeometry, look: Look) {
-    const m = new THREE.Mesh(geo, this.mat(g.userData.part, look))
+    const m = new THREE.Mesh(geo, this.mat(g.userData.part, look, g.userData.front))
     g.add(m)
     return m
   }
@@ -361,6 +362,7 @@ export class BalancerModel {
     const g = this.piece('calibro', [0, -0.14, 0.26])
     g.add(this.calSlide)
     this.calSlide.userData.part = 'calibro'
+    this.calSlide.userData.front = true
     this.mesh(this.calSlide, cylX(0.008, -0.36, 0.03).translate(0, 0.62, 0), LOOK.steel)
     this.mesh(this.calSlide, new THREE.CylinderGeometry(0.006, 0.004, 0.035, 12).translate(0.03, 0.6, 0), LOOK.steel)
     this.mesh(this.calSlide, new THREE.SphereGeometry(0.009, 14, 10).translate(0.03, 0.583, 0), LOOK.accent)
@@ -543,7 +545,8 @@ export class BalancerModel {
     for (const h of hits) {
       if (h.object.userData.noPick || !visibleChain(h.object)) continue
       // scarta ciò che il piano di sezione ha tolto
-      if (!this.section.keeps(h.point)) continue
+      const plane = ((h.object as THREE.Mesh).material as THREE.Material).clippingPlanes?.[0]
+      if (!this.section.keeps(h.point, plane)) continue
       let o: THREE.Object3D | null = h.object
       while (o && !o.userData.part) o = o.parent
       if (o) return o.userData.part

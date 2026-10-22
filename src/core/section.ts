@@ -10,13 +10,20 @@ import * as THREE from 'three'
  */
 export class Section {
   readonly plane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 100)
+  /**
+   * Piano per i pezzi che nello smontaggio si spostano verso l'operatore: il
+   * taglio si ritira man mano che escono dalla macchina, così restano visibili.
+   */
+  readonly front = new THREE.Plane(new THREE.Vector3(0, 0, -1), 100)
   private readonly mats = new Set<THREE.MeshStandardMaterial>()
   private active = false
   /** 0 = macchina intera, 1 = tagliata a metà sul piano verticale dell'albero. */
   amount = 0
+  /** Smontaggio 0..1. */
+  explode = 0
 
-  register<M extends THREE.MeshStandardMaterial>(m: M, hatch = 0xd9482b): M {
-    m.clippingPlanes = [this.plane]
+  register<M extends THREE.MeshStandardMaterial>(m: M, hatch = 0xd9482b, plane = this.plane): M {
+    m.clippingPlanes = [plane]
     const col = new THREE.Color(hatch)
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uHatch = { value: col }
@@ -36,9 +43,14 @@ export class Section {
     return m
   }
 
-  /** Vero se il punto (mondo) non è stato tolto dal taglio. */
-  keeps(p: THREE.Vector3) {
-    return this.plane.distanceToPoint(p) >= -1e-4
+  /** Vero se il punto (mondo) non è stato tolto dal piano di taglio indicato. */
+  keeps(p: THREE.Vector3, plane = this.plane) {
+    return plane.distanceToPoint(p) >= -1e-4
+  }
+
+  setExplode(t: number) {
+    this.explode = t
+    this.set(this.amount)
   }
 
   set(amount: number) {
@@ -46,6 +58,8 @@ export class Section {
     const on = amount > 0.001
     // Il piano scorre da davanti (z = 0.45, niente tagliato) fino all'asse (z = 0).
     this.plane.constant = on ? 0.45 * (1 - amount) : 100
+    const fa = amount * (1 - this.explode)
+    this.front.constant = fa > 0.001 ? 0.45 * (1 - fa) : 100
     if (on !== this.active) {
       this.active = on
       for (const m of this.mats) m.side = on ? THREE.DoubleSide : THREE.FrontSide
