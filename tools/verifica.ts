@@ -11,6 +11,8 @@
  * EqMatch e SmontMatch: ciclo di SmontMatch senza matching, poi il giro completo del
  * matching (M1, mezzo giro allo smontagomme, M2, rotazione ottimale, misura di verifica)
  * confrontando cerchio e pneumatico calcolati con quelli reali e il residuo con la previsione.
+ * Macchina privata: legge la macchina di esempio (docs/esempi), rifiuta i file sbagliati,
+ * controlla smontaggio, tavole ed etichette, poi misura e matching senza nessuna richiesta di rete.
  *
  * Uso: npm run verifica
  */
@@ -24,6 +26,9 @@ import { WHEELS as BAL_WHEELS, LAYOUT, wheelGeometry } from '../src/equilibratri
 import { createEqMatch, EqMatch } from '../src/eqmatch'
 import { createSmontMatch } from '../src/smontmatch'
 import { match } from '../src/core/match'
+import { leggiMacchina, ErroreFormato } from '../src/privata/format'
+import { createPrivateMachine } from '../src/privata'
+import esempio from '../docs/esempi/equilibratrice-di-prova.json?raw'
 
 const DT = 1 / 60
 const warn = console.warn
@@ -191,6 +196,9 @@ for (const w of quick ? WHEELS.slice(1, 2) : WHEELS) {
 
 // ---------- matching: EqMatch → SmontMatch → EqMatch ----------
 
+/** Giro completo del matching su una macchina con il motore di EqMatch (pubblica o caricata da file). */
+let matchingFlow: (eq: EqMatch, w: (typeof WHEELS)[number], label: string) => boolean
+
 console.log('EqMatch e SmontMatch: matching completo, calcolo confrontato con lo squilibrio reale')
 {
   const deg = (a: number) => (a * 180) / Math.PI
@@ -199,8 +207,7 @@ console.log('EqMatch e SmontMatch: matching completo, calcolo confrontato con lo
   const addV = (a: V, b: V): V => ({ re: a.re + b.re, im: a.im + b.im })
   const rotV = (v: V, a: number): V => ({ re: v.re * Math.cos(a) - v.im * Math.sin(a), im: v.re * Math.sin(a) + v.im * Math.cos(a) })
   const absV = (v: V) => Math.hypot(v.re, v.im)
-  for (const w of quick ? WHEELS.slice(1, 2) : WHEELS) {
-    const eq = createEqMatch(new Section())
+  matchingFlow = (eq: EqMatch, w: (typeof WHEELS)[number], label: string) => {
     const sm = createSmontMatch(new Section())
     eq.test.checkEveryFrame()
     sm.test.checkEveryFrame()
@@ -217,7 +224,6 @@ console.log('EqMatch e SmontMatch: matching completo, calcolo confrontato con lo
       while (sm.busy && k++ < maxT / DT) { sm.update(DT, t * 1000, true); t += DT }
       return !sm.busy
     }
-    const label = w.label
     const steps: [string, boolean][] = []
     runEq(() => !eq.busy, 10)
     eq.refresh()
@@ -251,8 +257,86 @@ console.log('EqMatch e SmontMatch: matching completo, calcolo confrontato con lo
     const fin = r.final ?? NaN
     steps.push([`residuo misurato ${fin.toFixed(1)} g, previsto ${predicted.toFixed(1)} g, partenza ${g(r.M1!).toFixed(1)} g`, Math.abs(fin - predicted) < 3])
     for (const [k, ok] of steps) if (ok) console.log(`  ✓ ${label}: ${k}`); else fail(`${label}: ${k} (passo ${eq.test.step})`)
-    for (const c of [...eq.test.clashes.map((c) => ({ ...c, msg: 'EqMatch' })), ...sm.test.clashes]) fail(`${label}: compenetrazione ${c.part} in ${c.solid} di ${(c.depth * 1000).toFixed(1)} mm (${c.step} · ${c.msg})`)
+    for (const c of [...eq.test.clashes.map((c) => ({ ...c, msg: eq.name })), ...sm.test.clashes]) fail(`${label}: compenetrazione ${c.part} in ${c.solid} di ${(c.depth * 1000).toFixed(1)} mm (${c.step} · ${c.msg})`)
+    return steps.every(([, ok]) => ok)
   }
+  for (const w of quick ? WHEELS.slice(1, 2) : WHEELS) matchingFlow(createEqMatch(new Section()), w, w.label)
+}
+
+// ---------- macchina privata caricata da file ----------
+
+console.log('Macchina privata: lettura del file, smontaggio, tavole, misura e matching')
+{
+  // ogni tentativo di andare in rete durante la prova è un errore
+  const net: string[] = []
+  const g = globalThis as Record<string, unknown>
+  const saved = { fetch: g.fetch, XMLHttpRequest: g.XMLHttpRequest, WebSocket: g.WebSocket }
+  g.fetch = (u: unknown) => { net.push(String(u)); return Promise.reject(new Error('rete vietata')) }
+  g.XMLHttpRequest = class { open(_m: string, u: string) { net.push(u) } send() {} }
+  g.WebSocket = class { constructor(u: string) { net.push(u) } }
+
+  const checks: [string, boolean][] = []
+  let file: ReturnType<typeof leggiMacchina> | null = null
+  try { file = leggiMacchina(esempio) } catch (e) { fail('macchina di esempio non valida: ' + (e as Error).message) }
+  checks.push([`macchina di esempio letta: ${file?.pezzi.length ?? 0} pezzi, ${file?.ricambi.length ?? 0} ricambi, ${file?.tavole.length ?? 0} tavole`, !!file])
+
+  // file sbagliati: devono essere rifiutati con un messaggio, senza eccezioni d'altro tipo
+  const base = JSON.parse(esempio)
+  const bad: [string, unknown][] = [
+    ['non JSON', 'function(){ alert(1) }'],
+    ['formato diverso', { ...base, formato: 'altro' }],
+    ['versione futura', { ...base, versione: 2 }],
+    ['tipo non supportato', { ...base, tipo: 'smontagomme' }],
+    ['campo sconosciuto', { ...base, script: 'x' }],
+    ['numero fuori scala', { ...base, pezzi: [{ ...base.pezzi[0], posizione: [1e9, 0, 0] }] }],
+    ['forma sconosciuta', { ...base, pezzi: [{ ...base.pezzi[0], forma: { tipo: 'mesh', url: 'http://esempio.invalid/a.glb' } }] }],
+    ['id ripetuto', { ...base, pezzi: [base.pezzi[0], base.pezzi[0]] }],
+    ['materiale __proto__', { ...base, materiali: JSON.parse('{"__proto__": {"colore": "#000000", "metallo": 0, "ruvidita": 0}}') }],
+    ['troppi punti', { ...base, pezzi: [{ ...base.pezzi[0], forma: { tipo: 'tubo', raggio: 0.01, percorso: Array.from({ length: 5000 }, (_, i) => [i / 1e4, 0, 0]) } }] }],
+  ]
+  for (const [k, v] of bad) {
+    let ok = false
+    try { leggiMacchina(typeof v === 'string' ? v : JSON.stringify(v)) } catch (e) { ok = e instanceof ErroreFormato }
+    checks.push([`rifiutato: ${k}`, ok])
+  }
+
+  if (file) {
+    const pm = createPrivateMachine(new Section(), file, 'privata-prova')
+    const model = pm.model
+    for (let i = 0; i < 30; i++) pm.update(DT, i * 16, true)
+    const ids = new Set(file.pezzi.map((p) => (p.tavola !== undefined ? `t${p.tavola}p${p.posizione_tavola}` : `pezzo-${p.id}`)))
+    checks.push([`una scheda per voce di tavola (${ids.size})`, [...ids].every((id) => !!pm.parts[id] && model.parts.has(id))])
+    checks.push(['ogni voce ha la sua etichetta T·pos', [...ids].every((id) => { let n = 0; model.root.traverse((o) => { if (o.userData.noPick && o.userData.part === id && o.userData.anchor) n++ }); return n === 1 })])
+
+    // smontaggio: a metà corsa i pezzi del primo ordine sono fuori, quelli dell'ultimo ancora al loro posto
+    const orders = [...new Set(file.pezzi.map((p) => p.esploso.ordine))].sort((a, b) => a - b)
+    const posOf = (id: string) => model.parts.get(id)!.pieces.map((pc) => pc.obj.position.length())
+    const first = file.pezzi.find((p) => p.esploso.ordine === orders[0] && p.esploso.distanza > 0)!
+    const last = file.pezzi.find((p) => p.esploso.ordine === orders[orders.length - 1])!
+    const idOf = (p: (typeof file.pezzi)[number]) => (p.tavola !== undefined ? `t${p.tavola}p${p.posizione_tavola}` : `pezzo-${p.id}`)
+    model.explode(0.5)
+    const ruotaFuori = model.parts.get('pneumatico')!.pieces[0].obj.position.length() > 0.59
+    checks.push([`smontaggio in ordine: a metà corsa ruota e ordine ${orders[0]} fuori, ordine ${orders[orders.length - 1]} ancora montato`, ruotaFuori && Math.max(...posOf(idOf(first))) > first.esploso.distanza * 0.99 && Math.max(...posOf(idOf(last))) < 1e-9])
+    model.explode(1)
+    checks.push(['smontaggio completo: ogni pezzo alla sua distanza', file.pezzi.every((p) => Math.abs(Math.max(...posOf(idOf(p))) - p.esploso.distanza) < 1e-6 || model.parts.get(idOf(p))!.pieces.some((pc) => Math.abs(pc.obj.position.length() - p.esploso.distanza) < 1e-6))])
+    model.explode(0)
+
+    // una tavola alla volta
+    model.showTavola(3)
+    const vis = [...model.parts.values()].filter((p) => !p.hidden).map((p) => p.id)
+    checks.push([`tavola 3: si vedono solo i suoi ${vis.length} pezzi`, vis.length > 0 && vis.every((id) => model.tavolaOf.get(id) === 3)])
+    model.showTavola(null)
+    checks.push(['tutte le tavole di nuovo visibili', [...model.parts.values()].every((p) => !p.hidden)])
+
+    // misura e matching come nella macchina pubblica, con la ruota che torna a questa macchina
+    pm.test.checkEveryFrame()
+    const okFlow = matchingFlow(pm, WHEELS[0], `${file.nome} ${WHEELS[0].label}`)
+    checks.push(['matching completo sulla macchina privata', okFlow])
+    checks.push(['lo smontagomme rimanda la ruota alla macchina privata', match.owner === 'privata-prova' && match.ownerName === file.nome])
+  }
+  checks.push([`nessuna richiesta di rete${net.length ? ': ' + net.join(', ') : ''}`, net.length === 0])
+  Object.assign(g, saved)
+  for (const [k, ok] of checks) if (ok) console.log('  ✓ ' + k); else fail(k)
 }
 
 console.warn = warn

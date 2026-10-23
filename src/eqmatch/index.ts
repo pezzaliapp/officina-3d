@@ -1,13 +1,15 @@
+import type * as THREE from 'three'
 import { Section } from '../core/section'
-import { Machine, IND } from '../core/machine'
+import { Machine, PartInfo, View, IND } from '../core/machine'
+import { nav } from '../core/nav'
 import { InterferenceCheck, Hit } from '../core/interference'
 import { match, touch, turnFor, wrapAngle, VALVE } from '../core/match'
 import { num, drawScope } from '../ui'
-import { BalancerModel } from './model'
+import { BalancerModel, BalancerLike } from './model'
 import { ConsoleDisplay } from './display'
 import { Controller } from './controller'
 import { PARTS } from './parts'
-import { WHEELS, LAYOUT, MACHINE, wheelGeometry, abs, arg, add, sub, scale, rot, C } from './physics'
+import { WHEELS, LAYOUT, MACHINE, Layout, MachineParams, wheelGeometry, abs, arg, add, sub, scale, rot, C } from './physics'
 
 /** Soglia predefinita dello squilibrio statico oltre cui si propone il matching, g. */
 const SOGLIA = 60
@@ -48,7 +50,7 @@ const PANE = `
   <canvas data-id="scope" class="scope" aria-label="Segnali dei sensori A e B"></canvas>
   <p class="legenda"><i class="a"></i> sensore A <i class="b"></i> sensore B · forza orizzontale (N)</p>`
 
-const TEXT = `
+export const TEXT = `
   <h3>Perché una ruota vibra</h3>
   <p>Se la massa non è distribuita in modo uniforme attorno all'asse, il punto pesante tira verso l'esterno con la forza centrifuga <code>F = m · r · ω²</code>. La forza cresce col quadrato della velocità e la direzione gira con la ruota.</p>
   <h3>Cerchio più pneumatico</h3>
@@ -101,13 +103,49 @@ const newMt = () => ({
 })
 type Mt = ReturnType<typeof newMt>
 
-export function createEqMatch(section: Section): EqMatch {
+/**
+ * Come cambiare EqMatch senza copiarlo: un'altra macchina (per esempio una caricata da file)
+ * usa la stessa misura e la stessa procedura di matching con il suo modello e i suoi parametri.
+ */
+export interface EqMatchOptions {
+  id: string
+  name: string
+  subtitle: string
+  /** Modello 3D; riceve la texture del display della console. */
+  model(screen: THREE.Texture): BalancerLike
+  layout: Layout
+  mc: MachineParams
+  parts: Record<string, PartInfo>
+  order: string[]
+  view: View
+  physicsText: string
+  partView?(id: string): View | null
+  /** Controlli in più sotto quelli della misura. */
+  mountExtra?(pane: HTMLElement): void
+}
+
+const PUBLIC: EqMatchOptions = {
+  id: 'eqmatch',
+  name: 'EqMatch',
+  subtitle: 'equilibratrice con matching',
+  model: (screen) => new BalancerModel(new Section(), screen),
+  layout: LAYOUT,
+  mc: MACHINE,
+  parts: PARTS,
+  order: ['pneumatico', 'cerchio', 'pesi', 'ghiera', 'cono', 'flangia', 'albero', 'cannotto', 'sensori', 'encoder', 'cinghia', 'motore', 'scheda', 'calibro', 'carter', 'console', 'vaschetta', 'telaio', 'mobile', 'pedale'],
+  view: { target: [-0.08, 0.6, 0], halfWidth: 0.85 },
+  physicsText: TEXT,
+}
+
+export function createEqMatch(section: Section, options?: EqMatchOptions): EqMatch {
+  const o = options ?? { ...PUBLIC, model: (screen: THREE.Texture) => new BalancerModel(section, screen) }
+  const { id, layout, mc, parts } = o
   const lcd = new ConsoleDisplay()
-  const model = new BalancerModel(section, lcd.texture)
-  const ctrl = new Controller()
+  const model = o.model(lcd.texture)
+  const ctrl = new Controller(layout, mc)
   const mt = newMt()
   let spec = WHEELS[1]
-  const xInnerOf = (s = spec) => LAYOUT.flangeFace - s.et - wheelGeometry(s).width / 2
+  const xInnerOf = (s = spec) => layout.flangeFace - s.et - wheelGeometry(s).width / 2
   ctrl.b.setWheel(spec, xInnerOf())
   model.buildWheel(spec)
   ctrl.onWeights = () => model.setWeights(ctrl.b.weights, spec)
@@ -140,7 +178,7 @@ export function createEqMatch(section: Section): EqMatch {
     if (match.version === version) return
     version = match.version
     const r = match.request
-    if (r?.done && (mt.step === 'giro' || mt.step === 'ottimale')) {
+    if (r?.done && match.owner === id && (mt.step === 'giro' || mt.step === 'ottimale')) {
       // la ruota torna dallo smontagomme: la misura vecchia non vale più
       const half = mt.step === 'giro'
       mt.step = half ? 'm2' : 'verifica'
@@ -170,6 +208,8 @@ export function createEqMatch(section: Section): EqMatch {
       mt.theta1 = match.theta
       // mezzo giro: il segno opposto al riferimento va sulla valvola
       match.request = { reason: 'm2', marks: { rim: VALVE, tire: wrapAngle(match.ref! + Math.PI) }, done: false }
+      match.owner = id
+      match.ownerName = o.name
       match.target = match.request.marks.tire
       touch()
       mt.step = 'giro'
@@ -186,6 +226,8 @@ export function createEqMatch(section: Section): EqMatch {
       // segno del pneumatico da portare sulla valvola: il riferimento girato di −δ
       const target = wrapAngle(match.ref! - mt.delta)
       match.request = { reason: 'ottimale', marks: { rim: VALVE, tire: target }, done: false }
+      match.owner = id
+      match.ownerName = o.name
       match.target = target
       touch()
       mt.step = 'ottimale'
@@ -219,7 +261,7 @@ export function createEqMatch(section: Section): EqMatch {
         ctrl.measure()
         break
       case 'giro': case 'ottimale':
-        location.hash = '#smontmatch'
+        nav.open('smontmatch')
         break
       case 'fine':
         if (ctrl.result && (ctrl.result.int.shown || ctrl.result.est.shown)) ctrl.applyWeights()
@@ -272,7 +314,7 @@ export function createEqMatch(section: Section): EqMatch {
       if (seen.has(key)) continue
       seen.add(key)
       clashes.push({ ...h, step: ctrl.stato })
-      console.warn(`[compenetrazione] EqMatch ${spec.label} · ${ctrl.stato} · ${PARTS[h.part]?.name ?? h.part} dentro ${h.solid} di ${num(h.depth * 1000, 1)} mm`)
+      console.warn(`[compenetrazione] ${o.name} ${spec.label} · ${ctrl.stato} · ${parts[h.part]?.name ?? h.part} dentro ${h.solid} di ${num(h.depth * 1000, 1)} mm`)
     }
   }
 
@@ -308,15 +350,16 @@ export function createEqMatch(section: Section): EqMatch {
   }
 
   return {
-    id: 'eqmatch',
-    name: 'EqMatch',
-    subtitle: 'equilibratrice con matching',
+    id,
+    name: o.name,
+    subtitle: o.subtitle,
     workTab: 'Misura',
     model,
-    parts: PARTS,
-    order: ['pneumatico', 'cerchio', 'pesi', 'ghiera', 'cono', 'flangia', 'albero', 'cannotto', 'sensori', 'encoder', 'cinghia', 'motore', 'scheda', 'calibro', 'carter', 'console', 'vaschetta', 'telaio', 'mobile', 'pedale'],
-    view: { target: [-0.08, 0.6, 0], halfWidth: 0.85 },
-    physicsText: TEXT,
+    parts,
+    order: o.order,
+    view: o.view,
+    partView: o.partView,
+    physicsText: o.physicsText,
     get busy() { return ctrl.busy },
 
     test: {
@@ -368,6 +411,7 @@ export function createEqMatch(section: Section): EqMatch {
       el.carter.addEventListener('click', () => ctrl.toggleGuard())
       el['m-avanti'].addEventListener('click', next)
       el['m-altro'].addEventListener('click', other)
+      o.mountExtra?.(pane)
       sync()
       requestAnimationFrame(() => drawScope(el.scope as HTMLCanvasElement, ctrl.scopeA, ctrl.scopeB, ctrl.scopeHead))
     },
@@ -464,7 +508,7 @@ export function createEqMatch(section: Section): EqMatch {
       const tireTrue = rot(add(match.tire.int, match.tire.est), mt.M1 ? mt.theta1 : match.theta)
       const rows: [string, string][] = [
         ['Velocità', `${num((b.omega * 30) / Math.PI, 0)} giri/min · ${num(b.omega)} rad/s`],
-        ['Velocità di misura', `${MACHINE.rpmMeasure} giri/min ${IND}`],
+        ['Velocità di misura', `${mc.rpmMeasure} giri/min ${IND}`],
         ['Forza sensore A', `${num(abs(fa), 2)} N`],
         ['Forza sensore B', `${num(abs(fb), 2)} N`],
         ['Raggio dei pesi', `${num(b.rWeight * 1000, 0)} mm`],

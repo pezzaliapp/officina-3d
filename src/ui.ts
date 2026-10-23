@@ -23,6 +23,14 @@ export const ui = {
   etichetta: $('etichetta'),
   info: $<HTMLDialogElement>('info'),
   btnInfo: $('btn-info'),
+  carica: $<HTMLButtonElement>('btn-carica'),
+  rimuovi: $<HTMLButtonElement>('btn-rimuovi'),
+  file: $<HTMLInputElement>('in-file'),
+  avviso: $<HTMLDialogElement>('avviso'),
+  avvisoTitolo: $('avviso-titolo'),
+  avvisoTesto: $('avviso-testo'),
+  avvisoOk: $<HTMLButtonElement>('avviso-ok'),
+  avvisoNo: $<HTMLButtonElement>('avviso-no'),
 }
 
 export function setupTabs(onChange: (tab: string) => void) {

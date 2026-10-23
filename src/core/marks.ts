@@ -79,12 +79,13 @@ export class Label {
   private cv = document.createElement('canvas')
   private tex: THREE.CanvasTexture
   private text = ''
-  constructor(height = 0.05) {
+  /** fixed: dimensione costante sullo schermo invece che nella scena (height in frazioni dello schermo). */
+  constructor(height = 0.05, fixed = false) {
     this.cv.width = 256
     this.cv.height = 64
     this.tex = new THREE.CanvasTexture(this.cv)
     this.tex.colorSpace = THREE.SRGBColorSpace
-    this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex, depthTest: false, transparent: true, toneMapped: false }))
+    this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex, depthTest: false, transparent: true, toneMapped: false, sizeAttenuation: !fixed }))
     this.sprite.scale.set(height * 4, height, 1)
     this.sprite.renderOrder = 10
     this.sprite.userData.noPick = true

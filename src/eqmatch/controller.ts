@@ -1,15 +1,18 @@
-import { Balancer, Demod, MACHINE, Result, WheelSpec, solve, abs } from './physics'
+import { Balancer, Demod, LAYOUT, MACHINE, Layout, MachineParams, Result, WheelSpec, solve, abs } from './physics'
 import { DisplayState } from './display'
 
 export type Stato = 'pronto' | 'rilievo' | 'carter' | 'lancio' | 'misura' | 'frenata' | 'risultato' | 'posiziona' | 'gira'
 
-const GUARD_UP = -1.7
 const TAU = Math.PI * 2
 const wrap = (a: number) => a - TAU * Math.round(a / TAU)
 
 /** Ciclo di lavoro dell'equilibratrice: rilievo, lancio, misura, frenata, posizionamento pesi. */
 export class Controller {
-  readonly b = new Balancer()
+  readonly b: Balancer
+  constructor(layout: Layout = LAYOUT, mc: MachineParams = MACHINE) {
+    this.b = new Balancer(layout, mc)
+    this.guard = this.guardTarget = mc.guardUp
+  }
   private demod = new Demod()
   stato: Stato = 'pronto'
   messaggio = 'Premi Avvia misura'
@@ -17,8 +20,8 @@ export class Controller {
   /** Valore reale simulato al momento della misura, per il confronto. */
   vero: { int: number; est: number } | null = null
 
-  guard = GUARD_UP
-  guardTarget = GUARD_UP
+  guard: number
+  guardTarget: number
   /** Estensione del calibro, m. */
   cal = 0
   private calTarget = 0
@@ -68,14 +71,14 @@ export class Controller {
   private rilievo() {
     this.stato = 'rilievo'
     this.messaggio = 'Il calibro rileva distanza e diametro'
-    this.calTarget = this.b.xInner + 0.008 - 0.03
+    this.calTarget = this.b.xInner + 0.008 - this.b.mc.calTipX
     this.calHold = 0.6
   }
 
   /** Gira la ruota a mano finché il punto all'angolo psi (sistema della ruota) è a ore 12. */
   turnTo(psi: number, msg: string, done: () => void) {
     if (this.busy) return false
-    this.guardTarget = GUARD_UP
+    this.guardTarget = this.b.mc.guardUp
     this.after = { stato: this.stato, done }
     this.stato = 'gira'
     this.posTarget = this.b.angle + wrap(-psi - this.b.angle)
@@ -95,7 +98,7 @@ export class Controller {
   toggleGuard() {
     if (this.stato === 'lancio' || this.stato === 'misura') {
       // Alzare il carter durante il lancio frena la ruota.
-      this.guardTarget = GUARD_UP
+      this.guardTarget = this.b.mc.guardUp
       this.b.motor = 'brake'
       this.stato = 'frenata'
       this.messaggio = 'Carter alzato: misura interrotta'
@@ -103,7 +106,7 @@ export class Controller {
       return
     }
     if (this.busy) return
-    this.guardTarget = this.guardTarget === 0 ? GUARD_UP : 0
+    this.guardTarget = this.guardTarget === 0 ? this.b.mc.guardUp : 0
   }
 
   applyWeights() {
@@ -114,7 +117,7 @@ export class Controller {
       if (r.shown > 0) this.queue.push({ plane, grams: r.shown, angle: r.angle })
     }
     if (!this.queue.length) return
-    this.guardTarget = GUARD_UP
+    this.guardTarget = this.b.mc.guardUp
     this.nextWeight()
   }
 
@@ -149,7 +152,7 @@ export class Controller {
     } else if (this.stato === 'carter') {
       this.b.motor = 'run'
       this.stato = 'lancio'
-      this.messaggio = 'Lancio fino a ' + MACHINE.rpmMeasure + ' giri/min'
+      this.messaggio = 'Lancio fino a ' + this.b.mc.rpmMeasure + ' giri/min'
       this.stable = 0
     }
 
@@ -232,22 +235,24 @@ export class Controller {
       this.scopeB[this.scopeHead] = sig.b
       this.scopeHead = (this.scopeHead + 1) % this.scopeA.length
     }
-    const target = (MACHINE.rpmMeasure * Math.PI) / 30
+    const target = (this.b.mc.rpmMeasure * Math.PI) / 30
     if (this.stato === 'lancio') {
       this.stable = Math.abs(b.omega - target) / target < 0.02 ? this.stable + h : 0
       if (this.stable > 0.3) {
         this.stato = 'misura'
-        this.messaggio = `Misura su ${MACHINE.measureRevs} giri`
+        this.messaggio = `Misura su ${this.b.mc.measureRevs} giri`
         this.demod.reset()
         this.startAngle = b.angle
         this.omegaSum = 0
         this.omegaN = 0
       }
     } else if (this.stato === 'misura') {
-      this.demod.push(sig.a, sig.b, b.angle)
+      // encoder a impulsi: la fase si legge a gradini di un impulso
+      const step = b.mc.encoderPulses > 0 ? TAU / b.mc.encoderPulses : 0
+      this.demod.push(sig.a, sig.b, step ? (Math.floor(b.angle / step) + 0.5) * step : b.angle)
       this.omegaSum += b.omega
       this.omegaN++
-      if (b.angle - this.startAngle >= MACHINE.measureRevs * TAU) {
+      if (b.angle - this.startAngle >= this.b.mc.measureRevs * TAU) {
         const { fa, fb } = this.demod.result()
         this.result = solve(b, fa, fb, this.omegaSum / this.omegaN)
         const ui = b.total('int'), uo = b.total('est')
@@ -258,7 +263,7 @@ export class Controller {
       }
     } else if (this.stato === 'frenata' && b.omega <= 0) {
       b.motor = 'off'
-      this.guardTarget = GUARD_UP
+      this.guardTarget = this.b.mc.guardUp
       if (this.result) {
         this.stato = 'risultato'
         const ok = this.result.int.shown === 0 && this.result.est.shown === 0

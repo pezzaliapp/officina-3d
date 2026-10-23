@@ -69,9 +69,20 @@ Quando il fermo per matching entra in azione la camera lo inquadra da vicino e a
 
 Il pannello Fisica di EqMatch mostra M1, M2, i vettori di cerchio e pneumatico (calcolati e reali) in un diagramma polare, l'angolo ottimale, il residuo previsto e quello misurato.
 
+## Macchine private da file
+
+Con **＋ Carica macchina**, accanto al menu delle macchine, si apre un file dal dispositivo (anche dal telefono) nel formato `officina-3d-macchina`, descritto in [docs/formato-macchina.md](docs/formato-macchina.md). Per ora il formato descrive equilibratrici: pezzi fatti di forme semplici, tavole e posizioni del catalogo, ordine e direzioni di smontaggio, catalogo ricambi e il collegamento alla simulazione di EqMatch, così misura e matching funzionano come nella macchina pubblica.
+
+- Il file viene solo interpretato (JSON controllato campo per campo), mai eseguito.
+- La macchina resta in IndexedDB, **solo su questo dispositivo**: nessuna richiesta di rete, niente cache del service worker, niente nell'indirizzo della pagina. Nel menu è segnata con 📱; **Rimuovi** la cancella.
+- Per la macchina caricata ci sono sezione, smontaggio che segue gli ordini del file, etichette **T5·12** con linea di richiamo, scheda del pezzo al tocco, una tavola alla volta ed elenco ricambi con ricerca.
+- Nel repository non c'è nessuna macchina privata: solo il lettore e una macchina di prova inventata, [docs/esempi/equilibratrice-di-prova.json](docs/esempi/equilibratrice-di-prova.json).
+
+Senza file caricato l'app è quella di sempre.
+
 ## Screenshot
 
-Ripresi in Chrome headless durante un giro completo di matching sulla ruota 175/65 R14 (`docs/screenshot/`).
+Ripresi in Chrome headless durante un giro completo di matching sulla ruota 175/65 R14 e con la macchina di prova caricata da file (`docs/screenshot/`).
 
 | | |
 |---|---|
@@ -80,6 +91,10 @@ Ripresi in Chrome headless durante un giro completo di matching sulla ruota 175/
 | ![SmontMatch, fermo](docs/screenshot/05-smontmatch-fermo-in-azione.png) SmontMatch: il fermo tiene il pneumatico, il cerchio gira | ![SmontMatch, fine](docs/screenshot/06-smontmatch-fine-ciclo.png) Fine ciclo, ritorno a EqMatch |
 | ![EqMatch, risultato](docs/screenshot/07-eqmatch-risultato.png) Risultato del matching e rotazione da fare | ![EqMatch, diagramma](docs/screenshot/08-eqmatch-fisica-polare.png) Vettori nel diagramma polare |
 | ![EqMatch, verifica](docs/screenshot/09-eqmatch-verifica.png) Misura di verifica | ![Fermo dall'elenco](docs/screenshot/10-fermo-dall-elenco.png) Fermo per matching scelto dall'elenco dei pezzi |
+| ![Macchina privata](docs/screenshot/11-privata-caricata.png) Macchina di prova caricata da file, con le etichette T·pos | ![Smontaggio](docs/screenshot/12-privata-smontaggio.png) Smontaggio secondo gli ordini del file |
+| ![Sezione](docs/screenshot/13-privata-sezione.png) Sezione della macchina caricata | ![Tavola](docs/screenshot/14-privata-tavola.png) Una tavola alla volta |
+| ![Ricambio](docs/screenshot/15-privata-ricambio.png) Ricambio scelto dall'elenco: scheda e pezzo nella sua tavola | ![Matching](docs/screenshot/16-privata-matching.png) Lo smontagomme rimanda la ruota alla macchina privata |
+| ![File sbagliato](docs/screenshot/17-privata-file-sbagliato.png) Un file non valido viene rifiutato con il motivo | |
 
 ## Valori indicativi
 
@@ -127,9 +142,12 @@ src/
   smontagomme/            modello con helper, fisica pneumatica, ciclo di lavoro, schede delle parti
   eqmatch/                copia dell'equilibratrice con la procedura di matching
   smontmatch/             copia dello smontagomme con la rotazione del pneumatico e il fermo per matching
+  privata/                lettore delle macchine private: formato, archivio sul dispositivo, modello
 public/                   manifest, service worker e icone della PWA
 tools/verifica.ts         verifica automatica (npm run verifica)
-docs/screenshot/          screenshot delle quattro macchine
+docs/screenshot/          screenshot delle macchine
+docs/formato-macchina.md  formato dei file delle macchine private
+docs/esempi/              macchina di prova inventata
 ```
 
 ## Licenza

@@ -48,11 +48,21 @@ export const MACHINE = {
   roundTo: 5, // g
   threshold: 5, // g, sotto questo valore il display mostra OK
   noise: 0.015, // N, rumore dei sensori
+  /** Impulsi dell'encoder per giro; 0 = fase letta senza quantizzazione. */
+  encoderPulses: 0,
+  /** Posizione x della punta del calibro a riposo, m. */
+  calTipX: 0.03,
+  /** Angolo del carter alzato, rad. */
+  guardUp: -1.7,
 }
+
+export type Layout = typeof LAYOUT
+export type MachineParams = typeof MACHINE
 
 export interface Weight { plane: 'int' | 'est'; grams: number; angle: number }
 
 export class Balancer {
+  constructor(readonly layout: Layout = LAYOUT, readonly mc: MachineParams = MACHINE) {}
   spec = WHEELS[1]
   geo = wheelGeometry(this.spec)
   weights: Weight[] = []
@@ -73,7 +83,7 @@ export class Balancer {
   get xOuter() { return this.xInner + this.geo.width }
   /** Raggio dei pesi a molla sulle balconate del cerchio. */
   get rWeight() { return this.geo.rimR + 0.012 }
-  get inertia() { return this.spec.mass * this.spec.gyration ** 2 + MACHINE.rotorInertia }
+  get inertia() { return this.spec.mass * this.spec.gyration ** 2 + this.mc.rotorInertia }
 
   /**
    * Nuova ruota: cerchio e pneumatico con il proprio squilibrio nascosto, montati in una posizione qualsiasi.
@@ -107,7 +117,7 @@ export class Balancer {
   sensorForces(omega = this.omega) {
     const w2 = omega * omega
     const ui = this.total('int'), uo = this.total('est')
-    const { sensorA: xa, sensorB: xb } = LAYOUT
+    const { sensorA: xa, sensorB: xb } = this.layout
     const L = xb - xa
     const fb = scale(add(scale(ui, this.xInner - xa), scale(uo, this.xOuter - xa)), w2 / L)
     const fa = sub(scale(add(ui, uo), w2), fb)
@@ -118,21 +128,21 @@ export class Balancer {
   signals() {
     const { fa, fb } = this.sensorForces()
     const c = Math.cos(this.angle), s = Math.sin(this.angle)
-    const n = () => (Math.random() + Math.random() + Math.random() - 1.5) * MACHINE.noise * 2
+    const n = () => (Math.random() + Math.random() + Math.random() - 1.5) * this.mc.noise * 2
     return { a: fa.re * s + fa.im * c + n(), b: fb.re * s + fb.im * c + n() }
   }
 
   /** Coppia del motore asincrono riportata alla ruota (caratteristica lineare semplificata). */
   private motorTorque() {
-    const k = MACHINE.beltRatio
+    const k = this.mc.beltRatio
     const wm = this.omega * k
-    const wm0 = (MACHINE.motorNoLoadRpm * Math.PI) / 30
-    const t0 = MACHINE.motorStallTorque
+    const wm0 = (this.mc.motorNoLoadRpm * Math.PI) / 30
+    const t0 = this.mc.motorStallTorque
     if (this.motor === 'run') {
-      const target = (MACHINE.rpmMeasure * Math.PI) / 30
+      const target = (this.mc.rpmMeasure * Math.PI) / 30
       const avail = t0 * Math.max(0, 1 - wm / wm0) * k
       // Regolazione: piena coppia fino alla velocità di misura, poi solo quanto basta.
-      const hold = MACHINE.coulomb + MACHINE.viscous * this.omega + (target - this.omega) * 40
+      const hold = this.mc.coulomb + this.mc.viscous * this.omega + (target - this.omega) * 40
       return Math.max(0, Math.min(avail, hold))
     }
     if (this.motor === 'brake') return this.omega > 0.05 ? -t0 * k : 0
@@ -141,7 +151,7 @@ export class Balancer {
 
   step(dt: number) {
     this.torque = this.motorTorque()
-    const fr = this.omega > 0 ? MACHINE.coulomb + MACHINE.viscous * this.omega : 0
+    const fr = this.omega > 0 ? this.mc.coulomb + this.mc.viscous * this.omega : 0
     let a = (this.torque - fr) / this.inertia
     if (this.motor !== 'run' && this.omega <= 0) a = 0
     this.omega = Math.max(0, this.omega + a * dt)
@@ -178,15 +188,15 @@ export interface Result {
 /** Dalle forze misurate ai pesi di correzione: si risolve il sistema della trave su due appoggi. */
 export function solve(b: Balancer, fa: C, fb: C, omega: number): Result {
   const w2 = omega * omega
-  const { sensorA: xa, sensorB: xb } = LAYOUT
+  const { sensorA: xa, sensorB: xb } = b.layout
   const S = scale(add(fa, fb), 1 / w2)
   const M = scale(add(scale(fa, xa), scale(fb, xb)), 1 / w2)
   const uo = scale(sub(M, scale(S, b.xInner)), 1 / (b.xOuter - b.xInner))
   const ui = sub(S, uo)
   const corr = (u: C) => {
     const grams = (abs(u) / b.rWeight) * 1000
-    const r = Math.round(grams / MACHINE.roundTo) * MACHINE.roundTo
-    return { grams, angle: arg(u) + Math.PI, shown: grams < MACHINE.threshold ? 0 : Math.max(r, MACHINE.roundTo) }
+    const r = Math.round(grams / b.mc.roundTo) * b.mc.roundTo
+    return { grams, angle: arg(u) + Math.PI, shown: grams < b.mc.threshold ? 0 : Math.max(r, b.mc.roundTo) }
   }
   return { int: corr(ui), est: corr(uo), staticG: (abs(S) / b.rWeight) * 1000, S, fa: abs(fa), fb: abs(fb) }
 }

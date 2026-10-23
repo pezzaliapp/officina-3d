@@ -5,6 +5,7 @@ import { InterferenceCheck, Hit } from '../core/interference'
 import { WHEELS, WheelSpec, wheelGeometry, tireHalfWidth } from '../core/wheel'
 import { match, touch, turnFor, halfTurnMarks, Marks, MatchRequest, VALVE } from '../core/match'
 import { num } from '../ui'
+import { nav } from '../core/nav'
 import { PARTS } from './parts'
 import { TireChangerModel, MATCH_FACE, MATCH_GAP, TT_Y, TT_Z, COL_P, BB_P, BLADE, BLADE_Y, BLADE_HALF, PAD_X, BB_LEVER, BB_ANCHOR, HOLD, JAW_LIP, JAW_TOP, HelperTool, Press } from './model'
 import { SPEC, BAR, area, tireData, turntableTorque, jawForce, inflowRate, pressureRise, reduction } from './physics'
@@ -1006,7 +1007,7 @@ export function createSmontMatch(section: Section): TireChanger {
         sync()
         renderSteps()
       })
-      el.torna.addEventListener('click', () => { location.hash = '#eqmatch' })
+      el.torna.addEventListener('click', () => nav.open(match.owner))
       const sel = el.ruota as HTMLSelectElement
       for (const w of WHEELS) sel.append(new Option(w.label + (w.aspect <= 45 ? ' · ribassato' : ''), w.id))
       sel.value = spec.id
@@ -1094,6 +1095,7 @@ export function createSmontMatch(section: Section): TireChanger {
         ;(el.matching as HTMLInputElement).disabled = !!job || st.fase !== 'pronta' || st.bb.sides > 0
         ;(el.helper as HTMLInputElement).disabled = matching
         el.torna.parentElement!.hidden = !(matching && st.fase === 'gonfia' && st.turned !== 0 && !job)
+        el.torna.textContent = `↩ Torna a ${match.ownerName} per la verifica`
         const ciclo = el.ciclo as HTMLButtonElement
         ciclo.disabled = !!job || apart
         ciclo.textContent = apart ? 'Rimonta per lavorare' : '▶ Ciclo completo'

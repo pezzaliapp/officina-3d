@@ -13,7 +13,23 @@ export const AXIS_Y = 0.78
 /** Cerniera del carter rispetto all'asse dell'albero (y, z). */
 const GUARD_PIVOT = [-0.03, -0.43] as const
 
-interface Cable { curve: THREE.CatmullRomCurve3; dots: THREE.Mesh[]; kind: 'sensore' | 'encoder' | 'display' }
+export interface Cable { curve: THREE.CatmullRomCurve3; dots: THREE.Mesh[]; kind: 'sensore' | 'encoder' | 'display' }
+
+/** Ciò che la misura e il matching di EqMatch usano del modello: lo rispetta anche una macchina caricata da file. */
+export interface BalancerLike extends MachineModel {
+  readonly rotor: THREE.Object3D
+  readonly guard: THREE.Object3D
+  readonly calSlide: THREE.Object3D
+  readonly piezo: THREE.MeshStandardMaterial[]
+  readonly beltMap: THREE.Texture
+  readonly cables: Cable[]
+  setMarks(s: MarkState, text?: string): void
+  setArrows(on: boolean, list: { x: number; angle: number; force: number }[]): void
+  wheelSolids(): Solid[]
+  isWheelOrMarker(o: THREE.Object3D): boolean
+  buildWheel(spec: WheelSpec): void
+  setWeights(list: Weight[], spec: WheelSpec): void
+}
 
 export class BalancerModel extends MachineModel {
   /** Gruppo fisso centrato sull'asse dell'albero. */

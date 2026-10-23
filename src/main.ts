@@ -8,6 +8,10 @@ import { createTireChanger } from './smontagomme'
 import { createEqMatch } from './eqmatch'
 import { createSmontMatch } from './smontmatch'
 import { ui, setupTabs, esc } from './ui'
+import { nav } from './core/nav'
+import { leggiMacchina, ErroreFormato } from './privata/format'
+import { createPrivateMachine } from './privata'
+import * as archivio from './privata/store'
 
 const host = document.getElementById('scena')!
 const { renderer, scene, camera, controls } = createStage(host)
@@ -22,6 +26,12 @@ const FACTORIES: Record<string, (s: Section) => Machine> = {
 }
 const built = new Map<string, Machine>()
 let m!: Machine
+/**
+ * Macchine private caricate da file: stanno in IndexedDB, solo su questo dispositivo.
+ * Non passano mai dall'indirizzo della pagina né dalla rete.
+ */
+const privates = new Map<string, archivio.Salvata>()
+const isPrivate = (id: string) => privates.has(id)
 
 let dirty = true
 let tab = 'lavoro'
@@ -85,7 +95,7 @@ controls.addEventListener('start', () => { fly = null; back = null })
 // ---------- cambio macchina ----------
 
 function open(id: string) {
-  if (!FACTORIES[id]) id = 'equilibratrice'
+  if (!FACTORIES[id] && !isPrivate(id)) id = 'equilibratrice'
   if (m?.id === id) return
   if (m) {
     m.model.highlight(null)
@@ -93,7 +103,15 @@ function open(id: string) {
   }
   let next = built.get(id)
   if (!next) {
-    next = FACTORIES[id](section)
+    try {
+      next = isPrivate(id) ? createPrivateMachine(section, leggiMacchina(privates.get(id)!.testo), id) : FACTORIES[id](section)
+    } catch (e) {
+      // un file salvato che non si legge più (formato cambiato, dati rovinati): resta nel menu, si può rimuovere
+      notice('Macchina non leggibile', e instanceof ErroreFormato ? e.errori : [(e as Error).message])
+      if (m) { m.model.root.visible = true; ui.macchina.value = m.id; return }
+      id = 'equilibratrice'
+      next = FACTORIES[id](section)
+    }
     built.set(id, next)
     scene.add(next.model.root)
   }
@@ -104,8 +122,10 @@ function open(id: string) {
   ui.tabLavoro.textContent = m.workTab
   m.mount(ui.lavoro)
   ui.fisicaTesto.innerHTML = m.physicsText
-  document.title = `Officina 3D · ${m.name}`
-  history.replaceState(null, '', '#' + id)
+  // la macchina privata non va nell'indirizzo, nel titolo (cronologia) né altrove fuori da qui
+  document.title = isPrivate(id) ? 'Officina 3D · macchina privata' : `Officina 3D · ${m.name}`
+  history.replaceState(null, '', isPrivate(id) ? location.pathname + location.search : '#' + id)
+  ui.rimuovi.hidden = !isPrivate(id)
   buildPartList()
   select(null)
   layout()
@@ -118,6 +138,65 @@ function open(id: string) {
 
 ui.macchina.addEventListener('change', () => open(ui.macchina.value))
 window.addEventListener('hashchange', () => open(location.hash.slice(1)))
+nav.open = (id) => { if (isPrivate(id)) open(id); else location.hash = id }
+
+// ---------- macchine private da file ----------
+
+/** Avviso nel pannello di dialogo; con onYes diventa una conferma. */
+function notice(title: string, lines: string[], onYes?: () => void, yes = 'Chiudi') {
+  ui.avvisoTitolo.textContent = title
+  ui.avvisoTesto.replaceChildren(...lines.map((l) => Object.assign(document.createElement('p'), { textContent: l })))
+  ui.avvisoOk.textContent = yes
+  ui.avvisoNo.hidden = !onYes
+  ui.avviso.onclose = () => { if (onYes && ui.avviso.returnValue === 'ok') onYes() }
+  ui.avviso.returnValue = ''
+  ui.avviso.showModal()
+}
+
+function privateMenu() {
+  ui.macchina.querySelector('optgroup[data-private]')?.remove()
+  if (!privates.size) return
+  const g = document.createElement('optgroup')
+  g.dataset.private = ''
+  g.label = '📱 Solo su questo dispositivo'
+  for (const p of privates.values()) g.append(new Option(`📱 ${p.nome}`, p.id))
+  ui.macchina.append(g)
+  if (m) ui.macchina.value = m.id
+}
+
+ui.carica.addEventListener('click', () => { ui.file.value = ''; ui.file.click() })
+ui.file.addEventListener('change', async () => {
+  const f = ui.file.files?.[0]
+  if (!f) return
+  try {
+    // il file si legge come testo e si interpreta come JSON: non viene mai eseguito
+    const testo = await f.text()
+    const def = leggiMacchina(testo)
+    const rec = await archivio.salva({ id: archivio.nuovaChiave(), nome: def.nome, testo, caricata: Date.now() })
+    privates.set(rec.id, rec)
+    privateMenu()
+    open(rec.id)
+  } catch (e) {
+    notice('File non caricato', e instanceof ErroreFormato ? e.errori : [(e as Error).message])
+  }
+})
+ui.rimuovi.addEventListener('click', () => {
+  const p = privates.get(m.id)
+  if (!p) return
+  notice('Rimuovere la macchina?', [`«${p.nome}» verrà cancellata da questo dispositivo. Per riaverla serve di nuovo il file.`], async () => {
+    try {
+      await archivio.rimuovi(p.id)
+    } catch (e) {
+      notice('Rimozione non riuscita', [(e as Error).message])
+      return
+    }
+    const mc = built.get(p.id)
+    privates.delete(p.id)
+    open('equilibratrice')
+    if (mc) { scene.remove(mc.model.root); built.delete(p.id) }
+    privateMenu()
+  }, 'Rimuovi')
+})
 
 // ---------- pannello ----------
 
@@ -243,7 +322,18 @@ function frame(now: number) {
   }
 }
 
+nav.frame = (v) => flyTo(viewPose(camera, v))
+// scelta di un pezzo da un controllo della macchina (es. l'elenco ricambi): scheda e inquadratura
+nav.select = (id) => {
+  select(id)
+  if (!id) return
+  openTab('parti')
+  const v = m.partView?.(id)
+  if (v) flyTo(viewPose(camera, v))
+}
+
 open(location.hash.slice(1) || 'equilibratrice')
+archivio.elenco().then((l) => { for (const p of l) privates.set(p.id, p); privateMenu() }).catch(() => {})
 requestAnimationFrame(frame)
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

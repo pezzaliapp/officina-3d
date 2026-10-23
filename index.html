@@ -29,6 +29,11 @@
               <option value="smontmatch">SmontMatch · smontagomme con matching</option>
             </select>
           </label>
+          <span class="azioni-macchina">
+            <button id="btn-carica" class="mini" type="button" title="Carica una macchina da un file su questo dispositivo">＋ Carica macchina</button>
+            <button id="btn-rimuovi" class="mini" type="button" hidden>Rimuovi</button>
+            <input id="in-file" type="file" accept=".json,application/json" hidden />
+          </span>
         </div>
       </div>
       <button id="btn-info" class="tondo" aria-label="Informazioni">?</button>
@@ -87,8 +92,18 @@
       <p>Macchine da officina da esplorare nel browser: un'equilibratrice e uno smontagomme per ruote auto, anche nella versione con il matching di pneumatico e cerchio (EqMatch e SmontMatch). Scegli la macchina in alto, trascina per ruotare, pizzica o usa la rotella per lo zoom, tocca un pezzo per sapere cos'è.</p>
       <p>Tutta la geometria è generata dal codice, senza modelli 3D esterni. I cicli di lavoro usano la fisica reale: forza centrifuga e trave su due appoggi per la misura dello squilibrio, pressione per area e leve per lo stallonatore, coppia del riduttore e legge dei gas nel gonfiaggio.</p>
       <p>Funziona anche offline: dal menu del browser scegli <b>Aggiungi a schermata Home</b>.</p>
+      <p>Con <b>＋ Carica macchina</b> puoi aprire un'equilibratrice descritta in un file (formato <i>officina-3d-macchina</i>): resta solo su questo dispositivo e non viene inviata in rete.</p>
       <p class="nota">© 2026 Alessandro Pezzali · Licenza MIT</p>
       <form method="dialog"><button class="primario">Chiudi</button></form>
+    </dialog>
+
+    <dialog id="avviso" class="info">
+      <h2 id="avviso-titolo"></h2>
+      <div id="avviso-testo" class="avviso-testo"></div>
+      <form method="dialog" class="riga">
+        <button id="avviso-ok" class="primario" value="ok">Chiudi</button>
+        <button id="avviso-no" value="no" hidden>Annulla</button>
+      </form>
     </dialog>
 
     <script type="module" src="/src/main.ts"></script>

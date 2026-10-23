@@ -3,3 +3,7 @@ dist
 .DS_Store
 *.log
 .verifica
+
+# macchine private: non entrano mai nel repository (l'app le legge dal dispositivo)
+macchine-private/
+*.macchina.json

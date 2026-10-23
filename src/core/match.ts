@@ -41,6 +41,9 @@ export const match = {
   /** Segno da allineare alla valvola, se il matching l'ha calcolato. */
   target: null as number | null,
   request: null as MatchRequest | null,
+  /** Macchina che ha chiesto la rotazione e a cui torna la ruota dallo smontagomme. */
+  owner: 'eqmatch',
+  ownerName: 'EqMatch',
   /** Cresce a ogni cambiamento: chi apre la macchina capisce se deve rileggere lo stato. */
   version: 0,
 }

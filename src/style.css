@@ -182,3 +182,28 @@ button.primario { background: var(--accento); border-color: var(--accento); colo
 .matching p { font-size: 13px; color: var(--tenue); margin: 0 0 10px; }
 .matching[hidden] { display: none; }
 .campo input { min-height: 44px; border-radius: 10px; border: 1px solid var(--linea); background: #1d232b; padding: 8px 12px; width: 100%; font: inherit; color: inherit; }
+
+/* macchine private caricate da file */
+.azioni-macchina { display: inline-flex; gap: 6px; margin-left: 6px; vertical-align: middle; }
+.mini {
+  border: 1px solid var(--linea); background: var(--pan); color: var(--tenue); border-radius: 999px;
+  font: inherit; font-size: 12px; padding: 3px 10px; min-height: 26px; cursor: pointer;
+}
+.mini:hover { color: var(--testo); }
+.privata { border-top: 1px solid var(--linea); margin-top: 14px; padding-top: 10px; display: grid; gap: 10px; }
+.solo-qui { margin: 0; font-size: 12px; color: var(--tenue); }
+.ricambi { display: grid; gap: 4px; max-height: 320px; overflow-y: auto; }
+.ricambio {
+  display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: baseline; text-align: left;
+  border: 1px solid var(--linea); border-radius: 8px; background: #1d232b; color: inherit; font: inherit; font-size: 13px;
+  padding: 7px 10px; min-height: 40px; cursor: pointer;
+}
+.ricambio b { color: #ffd21e; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.ricambio code { color: var(--tenue); font-size: 12px; }
+.ricambio small { color: var(--tenue); }
+.ricambio:disabled { opacity: 0.5; cursor: default; }
+.avviso-testo { max-height: 50vh; overflow-y: auto; font-size: 13px; }
+.avviso-testo p { margin: 4px 0; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+@media (max-width: 520px) {
+  .azioni-macchina { display: flex; margin: 4px 0 0; }
+}

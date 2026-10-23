@@ -1,0 +1,2152 @@
+{
+ "formato": "officina-3d-macchina",
+ "versione": 1,
+ "nome": "Equilibratrice di prova",
+ "tipo": "equilibratrice",
+ "dati_tecnici": [
+  {
+   "voce": "Diametro cerchi",
+   "valore": "14\" … 18\"",
+   "indicativo": true
+  },
+  {
+   "voce": "Velocità di misura",
+   "valore": "200 giri/min",
+   "indicativo": true
+  },
+  {
+   "voce": "Alimentazione",
+   "valore": "230 V monofase",
+   "indicativo": true
+  }
+ ],
+ "materiali": {
+  "blu-prova": {
+   "colore": "#2d5fa8",
+   "metallo": 0.3,
+   "ruvidita": 0.45
+  }
+ },
+ "tavole": [
+  {
+   "numero": 1,
+   "titolo": "Mobile"
+  },
+  {
+   "numero": 2,
+   "titolo": "Gruppo oscillante"
+  },
+  {
+   "numero": 3,
+   "titolo": "Motore e trasmissione"
+  },
+  {
+   "numero": 4,
+   "titolo": "Carter e calibro"
+  },
+  {
+   "numero": 5,
+   "titolo": "Console"
+  }
+ ],
+ "pezzi": [
+  {
+   "id": "base",
+   "nome": "Basamento",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.64,
+     0.03,
+     0.62
+    ]
+   },
+   "posizione": [
+    -0.31,
+    0.095,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "vernice",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 1,
+   "esploso": {
+    "direzione": [
+     0,
+     -1,
+     0
+    ],
+    "distanza": 0.0,
+    "ordine": 9
+   }
+  },
+  {
+   "id": "piede-1",
+   "nome": "Piedino",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.028,
+    "raggio_sopra": 0.024,
+    "altezza": 0.08
+   },
+   "posizione": [
+    -0.58,
+    0.04,
+    0.27
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 2,
+   "esploso": {
+    "direzione": [
+     0,
+     -1,
+     0
+    ],
+    "distanza": 0.0,
+    "ordine": 9
+   }
+  },
+  {
+   "id": "piede-2",
+   "nome": "Piedino",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.028,
+    "raggio_sopra": 0.024,
+    "altezza": 0.08
+   },
+   "posizione": [
+    -0.04,
+    0.04,
+    0.27
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 2,
+   "esploso": {
+    "direzione": [
+     0,
+     -1,
+     0
+    ],
+    "distanza": 0.0,
+    "ordine": 9
+   }
+  },
+  {
+   "id": "piede-3",
+   "nome": "Piedino",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.028,
+    "raggio_sopra": 0.024,
+    "altezza": 0.08
+   },
+   "posizione": [
+    -0.58,
+    0.04,
+    -0.27
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 2,
+   "esploso": {
+    "direzione": [
+     0,
+     -1,
+     0
+    ],
+    "distanza": 0.0,
+    "ordine": 9
+   }
+  },
+  {
+   "id": "piede-4",
+   "nome": "Piedino",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.028,
+    "raggio_sopra": 0.024,
+    "altezza": 0.08
+   },
+   "posizione": [
+    -0.04,
+    0.04,
+    -0.27
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 2,
+   "esploso": {
+    "direzione": [
+     0,
+     -1,
+     0
+    ],
+    "distanza": 0.0,
+    "ordine": 9
+   }
+  },
+  {
+   "id": "fianco-sx",
+   "nome": "Fianco sinistro",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.012,
+     0.86,
+     0.6
+    ]
+   },
+   "posizione": [
+    -0.614,
+    0.54,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "vernice",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 3,
+   "esploso": {
+    "direzione": [
+     -1,
+     0,
+     0
+    ],
+    "distanza": 0.45,
+    "ordine": 6
+   }
+  },
+  {
+   "id": "fianco-dx",
+   "nome": "Fianco destro",
+   "forma": {
+    "tipo": "estrusione",
+    "contorno": [
+     [
+      -0.3,
+      0.11
+     ],
+     [
+      0.3,
+      0.11
+     ],
+     [
+      0.3,
+      0.97
+     ],
+     [
+      -0.3,
+      0.97
+     ]
+    ],
+    "fori": [
+     [
+      [
+       0.056,
+       0.765
+      ],
+      [
+       0.0502,
+       0.751
+      ],
+      [
+       0.041,
+       0.739
+      ],
+      [
+       0.029,
+       0.7298
+      ],
+      [
+       0.015,
+       0.724
+      ],
+      [
+       -0.0,
+       0.722
+      ],
+      [
+       -0.015,
+       0.724
+      ],
+      [
+       -0.029,
+       0.7298
+      ],
+      [
+       -0.041,
+       0.739
+      ],
+      [
+       -0.0502,
+       0.751
+      ],
+      [
+       -0.056,
+       0.765
+      ],
+      [
+       -0.058,
+       0.78
+      ],
+      [
+       -0.056,
+       0.795
+      ],
+      [
+       -0.0502,
+       0.809
+      ],
+      [
+       -0.041,
+       0.821
+      ],
+      [
+       -0.029,
+       0.8302
+      ],
+      [
+       -0.015,
+       0.836
+      ],
+      [
+       0.0,
+       0.838
+      ],
+      [
+       0.015,
+       0.836
+      ],
+      [
+       0.029,
+       0.8302
+      ],
+      [
+       0.041,
+       0.821
+      ],
+      [
+       0.0502,
+       0.809
+      ],
+      [
+       0.056,
+       0.795
+      ],
+      [
+       0.058,
+       0.78
+      ]
+     ],
+     [
+      [
+       0.0155,
+       0.6159
+      ],
+      [
+       0.0139,
+       0.612
+      ],
+      [
+       0.0113,
+       0.6087
+      ],
+      [
+       0.008,
+       0.6061
+      ],
+      [
+       0.0041,
+       0.6045
+      ],
+      [
+       -0.0,
+       0.604
+      ],
+      [
+       -0.0041,
+       0.6045
+      ],
+      [
+       -0.008,
+       0.6061
+      ],
+      [
+       -0.0113,
+       0.6087
+      ],
+      [
+       -0.0139,
+       0.612
+      ],
+      [
+       -0.0155,
+       0.6159
+      ],
+      [
+       -0.016,
+       0.62
+      ],
+      [
+       -0.0155,
+       0.6241
+      ],
+      [
+       -0.0139,
+       0.628
+      ],
+      [
+       -0.0113,
+       0.6313
+      ],
+      [
+       -0.008,
+       0.6339
+      ],
+      [
+       -0.0041,
+       0.6355
+      ],
+      [
+       0.0,
+       0.636
+      ],
+      [
+       0.0041,
+       0.6355
+      ],
+      [
+       0.008,
+       0.6339
+      ],
+      [
+       0.0113,
+       0.6313
+      ],
+      [
+       0.0139,
+       0.628
+      ],
+      [
+       0.0155,
+       0.6241
+      ],
+      [
+       0.016,
+       0.62
+      ]
+     ]
+    ],
+    "spessore": 0.012
+   },
+   "posizione": [
+    -0.012,
+    0,
+    0
+   ],
+   "rotazione": [
+    0,
+    90,
+    0
+   ],
+   "materiale": "vernice",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 4,
+   "esploso": {
+    "direzione": [
+     1,
+     0,
+     0
+    ],
+    "distanza": 0.16,
+    "ordine": 6
+   },
+   "descrizione": "Lamiera con i fori per l'albero e per l'asta del calibro."
+  },
+  {
+   "id": "frontale",
+   "nome": "Pannello frontale",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.596,
+     0.86,
+     0.012
+    ]
+   },
+   "posizione": [
+    -0.31,
+    0.54,
+    0.294
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "vernice",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 5,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     1
+    ],
+    "distanza": 0.45,
+    "ordine": 6
+   }
+  },
+  {
+   "id": "fascia",
+   "nome": "Fascia decorativa",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.5,
+     0.03,
+     0.006
+    ]
+   },
+   "posizione": [
+    -0.31,
+    0.86,
+    0.303
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "blu-prova",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 6,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     1
+    ],
+    "distanza": 0.45,
+    "ordine": 6
+   }
+  },
+  {
+   "id": "retro",
+   "nome": "Pannello posteriore",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.596,
+     0.86,
+     0.012
+    ]
+   },
+   "posizione": [
+    -0.31,
+    0.54,
+    -0.294
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "vernice",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 7,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     -1
+    ],
+    "distanza": 0.45,
+    "ordine": 6
+   }
+  },
+  {
+   "id": "coperchio",
+   "nome": "Coperchio",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.64,
+     0.024,
+     0.62
+    ]
+   },
+   "posizione": [
+    -0.31,
+    0.982,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "vernice",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 8,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     0
+    ],
+    "distanza": 0.42,
+    "ordine": 5
+   }
+  },
+  {
+   "id": "pedale",
+   "nome": "Pedale freno",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.13,
+     0.022,
+     0.09
+    ]
+   },
+   "posizione": [
+    -0.18,
+    0.07,
+    0.37
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "mobile",
+   "tavola": 1,
+   "posizione_tavola": 9,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     1
+    ],
+    "distanza": 0.25,
+    "ordine": 6
+   }
+  },
+  {
+   "id": "albero",
+   "nome": "Albero",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0,
+      -0.42
+     ],
+     [
+      0.02,
+      -0.42
+     ],
+     [
+      0.02,
+      0.17
+     ],
+     [
+      0.018,
+      0.17
+     ],
+     [
+      0.018,
+      0.45
+     ],
+     [
+      0,
+      0.45
+     ]
+    ]
+   },
+   "posizione": [
+    0,
+    0.78,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "acciaio",
+   "gruppo": "albero",
+   "tavola": 2,
+   "posizione_tavola": 1,
+   "esploso": {
+    "direzione": [
+     1,
+     0,
+     0
+    ],
+    "distanza": 0.25,
+    "ordine": 8
+   },
+   "descrizione": "Gira con la ruota; la punta filettata attraversa il foro centrale del cerchio."
+  },
+  {
+   "id": "flangia",
+   "nome": "Flangia",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0.02,
+      0.16
+     ],
+     [
+      0.06,
+      0.16
+     ],
+     [
+      0.085,
+      0.19
+     ],
+     [
+      0.085,
+      0.219
+     ],
+     [
+      0.02,
+      0.219
+     ]
+    ]
+   },
+   "posizione": [
+    0,
+    0.78,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "alluminio",
+   "gruppo": "albero",
+   "tavola": 2,
+   "posizione_tavola": 2,
+   "esploso": {
+    "direzione": [
+     1,
+     0,
+     0
+    ],
+    "distanza": 0.12,
+    "ordine": 7
+   }
+  },
+  {
+   "id": "cannotto",
+   "nome": "Cannotto",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0.026,
+      -0.34
+     ],
+     [
+      0.05,
+      -0.34
+     ],
+     [
+      0.05,
+      -0.06
+     ],
+     [
+      0.026,
+      -0.06
+     ]
+    ]
+   },
+   "posizione": [
+    0,
+    0.78,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "oscillante",
+   "tavola": 2,
+   "posizione_tavola": 3,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     0
+    ],
+    "distanza": 0.28,
+    "ordine": 8
+   }
+  },
+  {
+   "id": "montante-1",
+   "nome": "Montante",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.014,
+     0.6,
+     0.2
+    ]
+   },
+   "posizione": [
+    -0.3,
+    0.44,
+    -0.02
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "oscillante",
+   "tavola": 2,
+   "posizione_tavola": 4,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     -1
+    ],
+    "distanza": 0.0,
+    "ordine": 9
+   }
+  },
+  {
+   "id": "sensore-a",
+   "nome": "Sensore di forza A",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.016,
+    "altezza": 0.03
+   },
+   "posizione": [
+    -0.3,
+    0.7,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "ceramica",
+   "gruppo": "sensori",
+   "tavola": 2,
+   "posizione_tavola": 5,
+   "esploso": {
+    "direzione": [
+     0,
+     -1,
+     0
+    ],
+    "distanza": 0.12,
+    "ordine": 9
+   },
+   "descrizione": "Cristallo piezoelettrico tra montante e cannotto: legge la forza che l'albero trasmette."
+  },
+  {
+   "id": "montante-2",
+   "nome": "Montante",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.014,
+     0.6,
+     0.2
+    ]
+   },
+   "posizione": [
+    -0.1,
+    0.44,
+    -0.02
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "oscillante",
+   "tavola": 2,
+   "posizione_tavola": 4,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     -1
+    ],
+    "distanza": 0.0,
+    "ordine": 9
+   }
+  },
+  {
+   "id": "sensore-b",
+   "nome": "Sensore di forza B",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.016,
+    "altezza": 0.03
+   },
+   "posizione": [
+    -0.1,
+    0.7,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "ceramica",
+   "gruppo": "sensori",
+   "tavola": 2,
+   "posizione_tavola": 6,
+   "esploso": {
+    "direzione": [
+     0,
+     -1,
+     0
+    ],
+    "distanza": 0.12,
+    "ordine": 9
+   },
+   "descrizione": "Cristallo piezoelettrico tra montante e cannotto: legge la forza che l'albero trasmette."
+  },
+  {
+   "id": "encoder",
+   "nome": "Disco encoder",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0.02,
+      -0.395
+     ],
+     [
+      0.06,
+      -0.395
+     ],
+     [
+      0.06,
+      -0.392
+     ],
+     [
+      0.02,
+      -0.392
+     ]
+    ]
+   },
+   "posizione": [
+    0,
+    0.78,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "rame",
+   "gruppo": "albero",
+   "tavola": 2,
+   "posizione_tavola": 7,
+   "esploso": {
+    "direzione": [
+     -1,
+     0,
+     0
+    ],
+    "distanza": 0.12,
+    "ordine": 8
+   }
+  },
+  {
+   "id": "puleggia",
+   "nome": "Puleggia condotta",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0.02,
+      -0.39
+     ],
+     [
+      0.078,
+      -0.39
+     ],
+     [
+      0.078,
+      -0.37
+     ],
+     [
+      0.02,
+      -0.37
+     ]
+    ]
+   },
+   "posizione": [
+    0,
+    0.78,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "alluminio",
+   "gruppo": "albero",
+   "tavola": 3,
+   "posizione_tavola": 1,
+   "esploso": {
+    "direzione": [
+     -1,
+     0,
+     0
+    ],
+    "distanza": 0.2,
+    "ordine": 7
+   }
+  },
+  {
+   "id": "cinghia",
+   "nome": "Cinghia",
+   "forma": {
+    "tipo": "tubo",
+    "percorso": [
+     [
+      -0.38,
+      0.7501,
+      -0.0721
+     ],
+     [
+      -0.38,
+      0.7659,
+      -0.0767
+     ],
+     [
+      -0.38,
+      0.7822,
+      -0.078
+     ],
+     [
+      -0.38,
+      0.7985,
+      -0.0758
+     ],
+     [
+      -0.38,
+      0.8139,
+      -0.0702
+     ],
+     [
+      -0.38,
+      0.8278,
+      -0.0616
+     ],
+     [
+      -0.38,
+      0.8397,
+      -0.0502
+     ],
+     [
+      -0.38,
+      0.8489,
+      -0.0366
+     ],
+     [
+      -0.38,
+      0.855,
+      -0.0214
+     ],
+     [
+      -0.38,
+      0.8578,
+      -0.0053
+     ],
+     [
+      -0.38,
+      0.8572,
+      0.0111
+     ],
+     [
+      -0.38,
+      0.8532,
+      0.027
+     ],
+     [
+      -0.38,
+      0.8459,
+      0.0417
+     ],
+     [
+      -0.38,
+      0.8357,
+      0.0546
+     ],
+     [
+      -0.38,
+      0.8231,
+      0.065
+     ],
+     [
+      -0.38,
+      0.8085,
+      0.0726
+     ],
+     [
+      -0.38,
+      0.7927,
+      0.077
+     ],
+     [
+      -0.38,
+      0.3646,
+      0.1476
+     ],
+     [
+      -0.38,
+      0.3544,
+      0.1474
+     ],
+     [
+      -0.38,
+      0.345,
+      0.1437
+     ],
+     [
+      -0.38,
+      0.3376,
+      0.1368
+     ],
+     [
+      -0.38,
+      0.3331,
+      0.1277
+     ],
+     [
+      -0.38,
+      0.3321,
+      0.1176
+     ],
+     [
+      -0.38,
+      0.3348,
+      0.1078
+     ],
+     [
+      -0.38,
+      0.3408,
+      0.0996
+     ],
+     [
+      -0.38,
+      0.3493,
+      0.0941
+     ]
+    ],
+    "raggio": 0.004,
+    "chiuso": true
+   },
+   "posizione": [
+    0,
+    0,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "gomma",
+   "gruppo": "trasmissione",
+   "tavola": 3,
+   "posizione_tavola": 2,
+   "esploso": {
+    "direzione": [
+     -1,
+     0,
+     0
+    ],
+    "distanza": 0.22,
+    "ordine": 4
+   }
+  },
+  {
+   "id": "motore",
+   "nome": "Motore",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0,
+      -0.6
+     ],
+     [
+      0.065,
+      -0.6
+     ],
+     [
+      0.065,
+      -0.4
+     ],
+     [
+      0,
+      -0.4
+     ]
+    ]
+   },
+   "posizione": [
+    0,
+    0.36,
+    0.12
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "grigio",
+   "gruppo": "trasmissione",
+   "tavola": 3,
+   "posizione_tavola": 3,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     1
+    ],
+    "distanza": 0.35,
+    "ordine": 4
+   }
+  },
+  {
+   "id": "puleggia-motore",
+   "nome": "Puleggia motore",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0,
+      -0.39
+     ],
+     [
+      0.028,
+      -0.39
+     ],
+     [
+      0.028,
+      -0.37
+     ],
+     [
+      0,
+      -0.37
+     ]
+    ]
+   },
+   "posizione": [
+    0,
+    0.36,
+    0.12
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "alluminio",
+   "gruppo": "trasmissione",
+   "tavola": 3,
+   "posizione_tavola": 4,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     1
+    ],
+    "distanza": 0.35,
+    "ordine": 4
+   }
+  },
+  {
+   "id": "carter",
+   "nome": "Carter",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0.4,
+      0.03
+     ],
+     [
+      0.41,
+      0.03
+     ],
+     [
+      0.41,
+      0.45
+     ],
+     [
+      0.4,
+      0.45
+     ]
+    ],
+    "segmenti": 56,
+    "angolo_inizio": -189,
+    "angolo_ampiezza": 197
+   },
+   "posizione": [
+    0,
+    0.78,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "plastica",
+   "gruppo": "carter",
+   "tavola": 4,
+   "posizione_tavola": 1,
+   "esploso": {
+    "direzione": [
+     1,
+     1,
+     0
+    ],
+    "distanza": 0.2,
+    "ordine": 1
+   },
+   "descrizione": "Si abbassa per la misura; alzato durante il lancio frena la ruota."
+  },
+  {
+   "id": "bordo-carter",
+   "nome": "Bordo del carter",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0.38,
+      0.12
+     ],
+     [
+      0.412,
+      0.12
+     ],
+     [
+      0.412,
+      0.15
+     ],
+     [
+      0.38,
+      0.15
+     ]
+    ],
+    "segmenti": 56,
+    "angolo_inizio": -189,
+    "angolo_ampiezza": 197
+   },
+   "posizione": [
+    0,
+    0.78,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "accento",
+   "gruppo": "carter",
+   "tavola": 4,
+   "posizione_tavola": 2,
+   "esploso": {
+    "direzione": [
+     1,
+     1,
+     0
+    ],
+    "distanza": 0.2,
+    "ordine": 1
+   }
+  },
+  {
+   "id": "braccio-carter",
+   "nome": "Braccio del carter",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.03,
+     0.03,
+     0.43
+    ]
+   },
+   "posizione": [
+    0.045,
+    0.75,
+    -0.215
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "carter",
+   "tavola": 4,
+   "posizione_tavola": 3,
+   "esploso": {
+    "direzione": [
+     1,
+     1,
+     0
+    ],
+    "distanza": 0.2,
+    "ordine": 1
+   }
+  },
+  {
+   "id": "staffa-carter",
+   "nome": "Staffa del carter",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.04,
+     0.05,
+     0.12
+    ]
+   },
+   "posizione": [
+    0.0,
+    0.75,
+    -0.37
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "staffa",
+   "tavola": 4,
+   "posizione_tavola": 4,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     -1
+    ],
+    "distanza": 0.15,
+    "ordine": 2
+   }
+  },
+  {
+   "id": "asta-calibro",
+   "nome": "Asta del calibro",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0,
+      -0.36
+     ],
+     [
+      0.008,
+      -0.36
+     ],
+     [
+      0.008,
+      0.03
+     ],
+     [
+      0,
+      0.03
+     ]
+    ]
+   },
+   "posizione": [
+    0,
+    0.62,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "acciaio",
+   "gruppo": "calibro",
+   "tavola": 4,
+   "posizione_tavola": 5,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     1
+    ],
+    "distanza": 0.26,
+    "ordine": 2
+   },
+   "descrizione": "Esce dal mobile fino a toccare il cerchio da dentro: dà la distanza del piano interno."
+  },
+  {
+   "id": "punta-calibro",
+   "nome": "Punta del calibro",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.007,
+    "altezza": 0.03
+   },
+   "posizione": [
+    0.03,
+    0.635,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "accento",
+   "gruppo": "calibro",
+   "tavola": 4,
+   "posizione_tavola": 6,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     1
+    ],
+    "distanza": 0.26,
+    "ordine": 2
+   }
+  },
+  {
+   "id": "guida-calibro",
+   "nome": "Guida del calibro",
+   "forma": {
+    "tipo": "rivoluzione",
+    "profilo": [
+     [
+      0.0085,
+      -0.3
+     ],
+     [
+      0.013,
+      -0.3
+     ],
+     [
+      0.013,
+      -0.02
+     ],
+     [
+      0.0085,
+      -0.02
+     ]
+    ]
+   },
+   "posizione": [
+    0,
+    0.62,
+    0
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "scuro",
+   "gruppo": "guida",
+   "tavola": 4,
+   "posizione_tavola": 7,
+   "esploso": {
+    "direzione": [
+     0,
+     0,
+     1
+    ],
+    "distanza": 0.2,
+    "ordine": 3
+   }
+  },
+  {
+   "id": "colonna",
+   "nome": "Colonna della console",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.08,
+     0.2,
+     0.06
+    ]
+   },
+   "posizione": [
+    -0.31,
+    1.09,
+    -0.24
+   ],
+   "rotazione": [
+    0,
+    0,
+    0
+   ],
+   "materiale": "vernice",
+   "gruppo": "console",
+   "tavola": 5,
+   "posizione_tavola": 1,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     0
+    ],
+    "distanza": 0.6,
+    "ordine": 3
+   }
+  },
+  {
+   "id": "console",
+   "nome": "Console",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.54,
+     0.34,
+     0.07
+    ]
+   },
+   "posizione": [
+    -0.31,
+    1.3,
+    -0.22
+   ],
+   "rotazione": [
+    -20,
+    0,
+    0
+   ],
+   "materiale": "vernice",
+   "gruppo": "console",
+   "tavola": 5,
+   "posizione_tavola": 2,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     0
+    ],
+    "distanza": 0.6,
+    "ordine": 3
+   }
+  },
+  {
+   "id": "display",
+   "nome": "Display",
+   "forma": {
+    "tipo": "scatola",
+    "dimensioni": [
+     0.45,
+     0.24,
+     0.004
+    ]
+   },
+   "posizione": [
+    -0.31,
+    1.3,
+    -0.183
+   ],
+   "rotazione": [
+    -20,
+    0,
+    0
+   ],
+   "materiale": "schermo",
+   "gruppo": "console",
+   "tavola": 5,
+   "posizione_tavola": 3,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     0
+    ],
+    "distanza": 0.6,
+    "ordine": 3
+   },
+   "descrizione": "Mostra i grammi per piano e guida il posizionamento dei pesi."
+  },
+  {
+   "id": "tasto-1",
+   "nome": "Tasto",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.012,
+    "altezza": 0.008
+   },
+   "posizione": [
+    -0.43,
+    1.159,
+    -0.2353
+   ],
+   "rotazione": [
+    70,
+    0,
+    0
+   ],
+   "materiale": "grigio",
+   "gruppo": "console",
+   "tavola": 5,
+   "posizione_tavola": 4,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     0
+    ],
+    "distanza": 0.6,
+    "ordine": 3
+   }
+  },
+  {
+   "id": "tasto-2",
+   "nome": "Tasto",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.012,
+    "altezza": 0.008
+   },
+   "posizione": [
+    -0.35,
+    1.159,
+    -0.2353
+   ],
+   "rotazione": [
+    70,
+    0,
+    0
+   ],
+   "materiale": "grigio",
+   "gruppo": "console",
+   "tavola": 5,
+   "posizione_tavola": 4,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     0
+    ],
+    "distanza": 0.6,
+    "ordine": 3
+   }
+  },
+  {
+   "id": "tasto-3",
+   "nome": "Tasto",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.012,
+    "altezza": 0.008
+   },
+   "posizione": [
+    -0.27,
+    1.159,
+    -0.2353
+   ],
+   "rotazione": [
+    70,
+    0,
+    0
+   ],
+   "materiale": "grigio",
+   "gruppo": "console",
+   "tavola": 5,
+   "posizione_tavola": 4,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     0
+    ],
+    "distanza": 0.6,
+    "ordine": 3
+   }
+  },
+  {
+   "id": "tasto-4",
+   "nome": "Tasto",
+   "forma": {
+    "tipo": "cilindro",
+    "raggio": 0.012,
+    "altezza": 0.008
+   },
+   "posizione": [
+    -0.19,
+    1.159,
+    -0.2353
+   ],
+   "rotazione": [
+    70,
+    0,
+    0
+   ],
+   "materiale": "grigio",
+   "gruppo": "console",
+   "tavola": 5,
+   "posizione_tavola": 4,
+   "esploso": {
+    "direzione": [
+     0,
+     1,
+     0
+    ],
+    "distanza": 0.6,
+    "ordine": 3
+   }
+  }
+ ],
+ "ricambi": [
+  {
+   "tavola": 1,
+   "posizione": 1,
+   "codice": "PR-1001",
+   "descrizione": "Base frame",
+   "descrizione_it": "Basamento",
+   "quantita": 1
+  },
+  {
+   "tavola": 1,
+   "posizione": 2,
+   "codice": "PR-1002",
+   "descrizione": "Foot",
+   "descrizione_it": "Piedino",
+   "quantita": 4
+  },
+  {
+   "tavola": 1,
+   "posizione": 3,
+   "codice": "PR-1003",
+   "descrizione": "Left side panel",
+   "descrizione_it": "Fianco sinistro",
+   "quantita": 1
+  },
+  {
+   "tavola": 1,
+   "posizione": 4,
+   "codice": "PR-1004",
+   "descrizione": "Right side panel",
+   "descrizione_it": "Fianco destro",
+   "quantita": 1
+  },
+  {
+   "tavola": 1,
+   "posizione": 5,
+   "codice": "PR-1005",
+   "descrizione": "Front panel",
+   "descrizione_it": "Pannello frontale",
+   "quantita": 1
+  },
+  {
+   "tavola": 1,
+   "posizione": 6,
+   "codice": "PR-1006",
+   "descrizione": "Trim strip",
+   "descrizione_it": "Fascia decorativa",
+   "quantita": 1
+  },
+  {
+   "tavola": 1,
+   "posizione": 7,
+   "codice": "PR-1007",
+   "descrizione": "Rear panel",
+   "descrizione_it": "Pannello posteriore",
+   "quantita": 1
+  },
+  {
+   "tavola": 1,
+   "posizione": 8,
+   "codice": "PR-1008",
+   "descrizione": "Top cover",
+   "descrizione_it": "Coperchio",
+   "quantita": 1
+  },
+  {
+   "tavola": 1,
+   "posizione": 9,
+   "codice": "PR-1009",
+   "descrizione": "Brake pedal",
+   "descrizione_it": "Pedale freno",
+   "quantita": 1
+  },
+  {
+   "tavola": 2,
+   "posizione": 1,
+   "codice": "PR-2001",
+   "descrizione": "Main shaft",
+   "descrizione_it": "Albero",
+   "quantita": 1
+  },
+  {
+   "tavola": 2,
+   "posizione": 2,
+   "codice": "PR-2002",
+   "descrizione": "Flange",
+   "descrizione_it": "Flangia",
+   "quantita": 1
+  },
+  {
+   "tavola": 2,
+   "posizione": 3,
+   "codice": "PR-2003",
+   "descrizione": "Shaft housing",
+   "descrizione_it": "Cannotto",
+   "quantita": 1
+  },
+  {
+   "tavola": 2,
+   "posizione": 4,
+   "codice": "PR-2004",
+   "descrizione": "Upright",
+   "descrizione_it": "Montante",
+   "quantita": 2
+  },
+  {
+   "tavola": 2,
+   "posizione": 5,
+   "codice": "PR-2005",
+   "descrizione": "Force sensor A",
+   "descrizione_it": "Sensore di forza A",
+   "quantita": 1
+  },
+  {
+   "tavola": 2,
+   "posizione": 6,
+   "codice": "PR-2006",
+   "descrizione": "Force sensor B",
+   "descrizione_it": "Sensore di forza B",
+   "quantita": 1
+  },
+  {
+   "tavola": 2,
+   "posizione": 7,
+   "codice": "PR-2007",
+   "descrizione": "Encoder disc",
+   "descrizione_it": "Disco encoder",
+   "quantita": 1
+  },
+  {
+   "tavola": 3,
+   "posizione": 1,
+   "codice": "PR-3001",
+   "descrizione": "Driven pulley",
+   "descrizione_it": "Puleggia condotta",
+   "quantita": 1
+  },
+  {
+   "tavola": 3,
+   "posizione": 2,
+   "codice": "PR-3002",
+   "descrizione": "Belt",
+   "descrizione_it": "Cinghia",
+   "quantita": 1
+  },
+  {
+   "tavola": 3,
+   "posizione": 3,
+   "codice": "PR-3003",
+   "descrizione": "Motor",
+   "descrizione_it": "Motore",
+   "quantita": 1
+  },
+  {
+   "tavola": 3,
+   "posizione": 4,
+   "codice": "PR-3004",
+   "descrizione": "Motor pulley",
+   "descrizione_it": "Puleggia motore",
+   "quantita": 1
+  },
+  {
+   "tavola": 4,
+   "posizione": 1,
+   "codice": "PR-4001",
+   "descrizione": "Wheel guard",
+   "descrizione_it": "Carter",
+   "quantita": 1
+  },
+  {
+   "tavola": 4,
+   "posizione": 2,
+   "codice": "PR-4002",
+   "descrizione": "Guard rim",
+   "descrizione_it": "Bordo del carter",
+   "quantita": 1
+  },
+  {
+   "tavola": 4,
+   "posizione": 3,
+   "codice": "PR-4003",
+   "descrizione": "Guard arm",
+   "descrizione_it": "Braccio del carter",
+   "quantita": 1
+  },
+  {
+   "tavola": 4,
+   "posizione": 4,
+   "codice": "PR-4004",
+   "descrizione": "Guard bracket",
+   "descrizione_it": "Staffa del carter",
+   "quantita": 1
+  },
+  {
+   "tavola": 4,
+   "posizione": 5,
+   "codice": "PR-4005",
+   "descrizione": "Gauge rod",
+   "descrizione_it": "Asta del calibro",
+   "quantita": 1
+  },
+  {
+   "tavola": 4,
+   "posizione": 6,
+   "codice": "PR-4006",
+   "descrizione": "Gauge tip",
+   "descrizione_it": "Punta del calibro",
+   "quantita": 1
+  },
+  {
+   "tavola": 4,
+   "posizione": 7,
+   "codice": "PR-4007",
+   "descrizione": "Gauge guide",
+   "descrizione_it": "Guida del calibro",
+   "quantita": 1
+  },
+  {
+   "tavola": 5,
+   "posizione": 1,
+   "codice": "PR-5001",
+   "descrizione": "Console post",
+   "descrizione_it": "Colonna della console",
+   "quantita": 1
+  },
+  {
+   "tavola": 5,
+   "posizione": 2,
+   "codice": "PR-5002",
+   "descrizione": "Console housing",
+   "descrizione_it": "Console",
+   "quantita": 1
+  },
+  {
+   "tavola": 5,
+   "posizione": 3,
+   "codice": "PR-5003",
+   "descrizione": "Display",
+   "descrizione_it": "Display",
+   "quantita": 1
+  },
+  {
+   "tavola": 5,
+   "posizione": 4,
+   "codice": "PR-5004",
+   "descrizione": "Key",
+   "descrizione_it": "Tasto",
+   "quantita": 4
+  }
+ ],
+ "simulazione": {
+  "albero": {
+   "altezza_asse": 0.78,
+   "faccia_flangia": 0.22,
+   "inerzia": 0.03
+  },
+  "sensori": {
+   "a": -0.3,
+   "b": -0.1,
+   "rumore": 0.015
+  },
+  "encoder": {
+   "impulsi_giro": 512
+  },
+  "motore": {
+   "coppia_spunto": 3.0,
+   "giri_a_vuoto": 1450,
+   "rapporto_cinghia": 2.79,
+   "attrito_coulomb": 0.15,
+   "attrito_viscoso": 0.02
+  },
+  "misura": {
+   "giri_misura": 200,
+   "giri_acquisizione": 8,
+   "arrotondamento": 5,
+   "soglia_ok": 5
+  },
+  "calibro": {
+   "punta_x": 0.03
+  },
+  "carter": {
+   "cerniera": [
+    -0.03,
+    -0.43
+   ],
+   "angolo_alzato": -1.7
+  }
+ }
+}
