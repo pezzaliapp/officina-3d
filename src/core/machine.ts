@@ -8,6 +8,14 @@ export interface PartInfo {
   data?: { k: string; v: string; indicativo?: boolean }[]
 }
 
+/** Inquadratura: punto guardato, mezza larghezza da far stare nello schermo (m) e direzione da cui si guarda. */
+export interface View {
+  target: [number, number, number]
+  halfWidth: number
+  /** Direzione dal punto guardato verso la camera; predefinita da destra, in alto, davanti. */
+  dir?: [number, number, number]
+}
+
 /** Una macchina dell'officina: modello 3D, ciclo di lavoro, pannello e fisica. */
 export interface Machine {
   readonly id: string
@@ -19,8 +27,12 @@ export interface Machine {
   readonly parts: Record<string, PartInfo>
   /** Ordine delle parti nell'elenco. */
   readonly order: string[]
-  /** Inquadratura: punto guardato e mezza larghezza da far stare nello schermo, m. */
-  readonly view: { target: [number, number, number]; halfWidth: number }
+  /** Inquadratura iniziale. */
+  readonly view: View
+  /** Inquadratura dedicata a un pezzo, usata quando lo si sceglie dall'elenco; facoltativa. */
+  partView?(id: string): View | null
+  /** Inquadratura chiesta dal ciclo mentre un pezzo lavora (null = vista libera); facoltativa. */
+  cameraView?(): View | null
   /** Spiegazione della fisica (HTML statico). */
   readonly physicsText: string
   /** Vero mentre un ciclo è in corso: la selezione col tocco non cambia scheda. */

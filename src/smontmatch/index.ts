@@ -1,9 +1,9 @@
 import * as THREE from 'three'
 import { Section } from '../core/section'
-import { Machine, IND } from '../core/machine'
+import { Machine, View, IND } from '../core/machine'
 import { InterferenceCheck, Hit } from '../core/interference'
 import { WHEELS, WheelSpec, wheelGeometry, tireHalfWidth } from '../core/wheel'
-import { match, touch, turnFor, halfTurnMarks, Marks, VALVE } from '../core/match'
+import { match, touch, turnFor, halfTurnMarks, Marks, MatchRequest, VALVE } from '../core/match'
 import { num } from '../ui'
 import { PARTS } from './parts'
 import { TireChangerModel, MATCH_FACE, MATCH_GAP, TT_Y, TT_Z, COL_P, BB_P, BLADE, BLADE_Y, BLADE_HALF, PAD_X, BB_LEVER, BB_ANCHOR, HOLD, JAW_LIP, JAW_TOP, HelperTool, Press } from './model'
@@ -141,6 +141,8 @@ export function createSmontMatch(section: Section): TireChanger {
   let version = -1
   /** Segni del matching in corso, null se non ce n'è uno. */
   let marks: Marks | null = null
+  /** Da quale richiesta di EqMatch vengono i segni; null per il mezzo giro senza richiesta. */
+  let marksFrom: MatchRequest['reason'] | null = null
   const steps = () => (matching ? STEPS_M : STEPS)
   const order = () => (matching ? ORDER_M : ORDER)
 
@@ -170,8 +172,9 @@ export function createSmontMatch(section: Section): TireChanger {
     /** Angolo del pneumatico sul cerchio; held = pneumatico tenuto fermo mentre il cerchio gira. */
     theta: 0,
     held: false,
-    /** Fermo per matching: 0 rientrato, 1 sul battistrada. */
+    /** Fermo per matching: 0 rientrato, 1 sul battistrada; focus = la camera lo inquadra. */
     clamp: 0,
+    focus: false,
     /** Rotazione del pneumatico sul cerchio: fatta e richiesta, rad. */
     turned: 0,
     turnReq: 0,
@@ -644,6 +647,9 @@ export function createSmontMatch(section: Section): TireChanger {
     say('Pneumatico montato, talloni ancora nel canale: si gonfia')
   }
 
+  /** Inquadratura del fermo per matching: da sinistra, davanti e in alto, con il pattino e il fianco segnato. */
+  const clampView = (): View => ({ target: [-0.26, ttCenterY(), TT_Z], halfWidth: 0.48, dir: [0.15, 1.4, 1.0] })
+
   /** Uscita dello stelo del fermo che porta il pattino a contatto con il battistrada. */
   const clampExt = () => -geo.tireR - MATCH_GAP - MATCH_FACE
 
@@ -657,6 +663,7 @@ export function createSmontMatch(section: Section): TireChanger {
     yield* moveTool('disco', target.disco())
     yield* pushTool('disco', 0.02)
     say('Il fermo per matching appoggia il pattino di gomma al battistrada')
+    st.focus = true
     st.air.add('matching')
     yield* tween(0.9, (k) => (st.clamp = k))
     st.air.delete('matching')
@@ -675,6 +682,7 @@ export function createSmontMatch(section: Section): TireChanger {
     st.air.add('matching')
     yield* tween(0.7, (k) => (st.clamp = 1 - k))
     st.air.delete('matching')
+    st.focus = false
     yield* releaseTool('disco')
     // talloni ancora fuori sede: salteranno in sede col gonfiaggio
     st.seat = 0
@@ -739,7 +747,7 @@ export function createSmontMatch(section: Section): TireChanger {
     st.bb.flipped = false
     st.turned = 0
     st.fase = 'pronta'
-    if (matching && !(match.request && !match.request.done)) marks = halfTurnMarks(st.theta)
+    if (matching && !(match.request && !match.request.done)) { marks = halfTurnMarks(st.theta); marksFrom = null }
     say('Ruota sgonfia appoggiata ai tamponi: inizia dalla stallonatura')
   }
 
@@ -768,6 +776,7 @@ export function createSmontMatch(section: Section): TireChanger {
     }
     // senza richiesta da EqMatch: mezzo giro, segno del pneumatico opposto alla valvola
     marks = req ? { ...req.marks } : matching ? halfTurnMarks(st.theta) : null
+    marksFrom = req?.reason ?? null
     dirty = true
   }
 
@@ -789,7 +798,7 @@ export function createSmontMatch(section: Section): TireChanger {
     if (st.fase === 'gonfia') yield* RUN.nuovo()
     for (const s of steps()) if (st.fase === s.from) yield* RUN[s.id]()
   }
-  const start = (co: Co) => { if (!job && model.exploded < 0.01) { job = co; job.next(0) } }
+  const start = (co: Co) => { if (!job && model.exploded < 0.01) { st.focus = false; job = co; job.next(0) } }
   /** Sostituisce il lavoro in corso (RITORNO e ARRESTO interrompono lo stallonatore). */
   const replace = (co: Co) => { job = co; job.next(0) }
 
@@ -959,6 +968,8 @@ export function createSmontMatch(section: Section): TireChanger {
     parts: PARTS,
     order: ['pneumatico', 'cerchio', 'piatto', 'griffe', 'cilindri-griffe', 'palo', 'cilindro-palo', 'braccio', 'asta', 'bloccaggio', 'utensile', 'leva', 'stallonatore', 'paletta', 'cilindro-stallonatore', 'pulsantiera', 'elettrovalvola', 'tamponi', 'helper', 'helper-rullo', 'helper-disco', 'helper-cono', 'helper-cilindri', 'helper-comando', 'matching', 'pedaliera', 'valvole', 'frl', 'gonfiaggio', 'riduttore', 'cinghia', 'motore', 'mobile'],
     view: { target: [0.0, 0.72, 0.0], halfWidth: 1.15 },
+    partView: (id) => (id === 'matching' ? clampView() : null),
+    cameraView: () => (st.focus && job ? clampView() : null),
     physicsText: TEXT,
     get busy() { return job !== null },
 
@@ -1076,8 +1087,9 @@ export function createSmontMatch(section: Section): TireChanger {
           const req = marks ? turnFor(marks, st.theta) : 0
           el['m-ang'].textContent = `${Math.abs(deg(st.turned))}°`
           el['m-req'].textContent = st.fase === 'ruotata' || st.fase === 'gonfia' ? `${Math.abs(deg(st.turnReq))}° fatti` : `${Math.abs(deg(req))}° ${req >= 0 ? '↺' : '↻'}`
-          const from = match.request && !match.request.done ? (match.request.reason === 'm2' ? 'da EqMatch: mezzo giro per la seconda misura' : 'da EqMatch: angolo ottimale del matching') : 'nessuna richiesta da EqMatch: mezzo giro (180°)'
-          el['m-info'].textContent = `Segni ${from}. Senso visto dall'alto, lato esterno della ruota.`
+          const from = marksFrom === 'm2' ? 'da EqMatch: mezzo giro per la seconda misura' : marksFrom === 'ottimale' ? 'da EqMatch: angolo ottimale del matching' : 'senza richiesta da EqMatch: mezzo giro (180°)'
+          const done = st.fase === 'gonfia' && st.turned !== 0 ? (marksFrom ? ', rotazione eseguita' : ' eseguito') : ''
+          el['m-info'].textContent = `Segni ${from}${done}. Senso visto dall'alto, lato esterno della ruota.`
         }
         ;(el.matching as HTMLInputElement).disabled = !!job || st.fase !== 'pronta' || st.bb.sides > 0
         ;(el.helper as HTMLInputElement).disabled = matching

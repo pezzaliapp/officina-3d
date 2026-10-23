@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { View } from './core/machine'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
@@ -67,14 +68,20 @@ export function createStage(host: HTMLElement) {
 }
 
 /** Inquadratura iniziale: la distanza si adatta alla larghezza dello schermo. */
-export function homeView(camera: THREE.PerspectiveCamera, controls: OrbitControls, view: { target: [number, number, number]; halfWidth: number }) {
+export function homeView(camera: THREE.PerspectiveCamera, controls: OrbitControls, view: View) {
+  const p = viewPose(camera, view)
+  camera.position.copy(p.position)
+  controls.target.copy(p.target)
+  controls.update()
+}
+
+/** Posizione della camera e punto guardato per un'inquadratura. */
+export function viewPose(camera: THREE.PerspectiveCamera, view: View) {
   const aspect = window.innerWidth / window.innerHeight
   camera.fov = aspect < 1 ? 50 : 38
   camera.updateProjectionMatrix()
   const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect
   const target = new THREE.Vector3(...view.target)
-  const dir = new THREE.Vector3(1.0, 0.5, 1.2).normalize()
-  camera.position.copy(target).addScaledVector(dir, Math.max(view.halfWidth * 2.9, view.halfWidth / halfW))
-  controls.target.copy(target)
-  controls.update()
+  const dir = new THREE.Vector3(...(view.dir ?? [1.0, 0.5, 1.2])).normalize()
+  return { position: target.clone().addScaledVector(dir, Math.max(view.halfWidth * 2.9, view.halfWidth / halfW)), target }
 }

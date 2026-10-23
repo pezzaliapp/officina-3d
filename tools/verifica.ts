@@ -5,6 +5,9 @@
  * su tutte le misure di ruota, con e senza braccio di aiuto, e raccoglie le
  * compenetrazioni tra pezzi della macchina e ruota segnalate dal controllo.
  * Equilibratrice: esegue una misura e confronta il risultato con lo squilibrio reale.
+ * Equilibratrice ed EqMatch: rilievo col calibro, misura, pesi e carter su tutte le ruote
+ * con il controllo di compenetrazione; una prova col calibro spostato dentro il cerchio
+ * controlla che il controllo lo veda davvero.
  * EqMatch e SmontMatch: ciclo di SmontMatch senza matching, poi il giro completo del
  * matching (M1, mezzo giro allo smontagomme, M2, rotazione ottimale, misura di verifica)
  * confrontando cerchio e pneumatico calcolati con quelli reali e il residuo con la previsione.
@@ -15,10 +18,10 @@ import './dom-stub'
 import { Section } from '../src/core/section'
 import { WHEELS } from '../src/core/wheel'
 import { createTireChanger, Clash } from '../src/smontagomme'
-import { createBalancer } from '../src/equilibratrice'
+import { createBalancer, Balancer } from '../src/equilibratrice'
 import { Controller } from '../src/equilibratrice/controller'
 import { WHEELS as BAL_WHEELS, LAYOUT, wheelGeometry } from '../src/equilibratrice/physics'
-import { createEqMatch } from '../src/eqmatch'
+import { createEqMatch, EqMatch } from '../src/eqmatch'
 import { createSmontMatch } from '../src/smontmatch'
 import { match } from '../src/core/match'
 
@@ -117,6 +120,49 @@ console.log('Equilibratrice: misura e confronto con lo squilibrio reale')
     const ok = Math.abs(r.int.grams - v.int) < 5 && Math.abs(r.est.grams - v.est) < 5
     const line = `${spec.label}: interno ${r.int.grams.toFixed(1)} / ${v.int.toFixed(1)} g, esterno ${r.est.grams.toFixed(1)} / ${v.est.toFixed(1)} g in ${t.toFixed(1)} s`
     if (ok) console.log('  ✓ ' + line); else fail(line)
+  }
+}
+
+// ---------- equilibratrice ed EqMatch: compenetrazioni, calibro compreso ----------
+
+console.log('Equilibratrice ed EqMatch: controllo di compenetrazione, calibro compreso')
+for (const [name, create] of [['Equilibratrice', createBalancer], ['EqMatch', createEqMatch]] as [string, (s: Section) => Balancer | EqMatch][]) {
+  for (const w of only ? BAL_WHEELS.filter((x) => x.id === only) : quick ? BAL_WHEELS.slice(0, 1) : BAL_WHEELS) {
+    const m = create(new Section())
+    m.test.checkEveryFrame()
+    let t = 0
+    const step = () => { m.update(DT, t * 1000, true); t += DT }
+    const runUntil = (until: () => boolean, s = 60) => { for (let k = 0; k < s / DT && !until(); k++) step(); return until() }
+    runUntil(() => !m.busy, 10)
+    const label = `${name} ${w.label}`
+    const checks: [string, boolean][] = []
+    m.test.setWheel(w.id)
+    // rilievo: si aspetta il calibro fermo contro il cerchio, poi la prova
+    let cal = 0, still = 0
+    runUntil(() => {
+      const c = m.test.calibro
+      still = c > 0.01 && Math.abs(c - cal) < 1e-6 ? still + 1 : 0
+      cal = c
+      return still > 3 || m.test.stato !== 'rilievo'
+    }, 10)
+    checks.push([`calibro contro il cerchio a ${(cal * 1000).toFixed(0)} mm di corsa, nessun contatto`, still > 3 && m.test.probeCaliper(0).length === 0])
+    const probe = m.test.probeCaliper(-0.012)
+    checks.push([`prova: calibro abbassato di 12 mm, il controllo lo trova (${probe.map((h) => `${h.solid} ${(h.depth * 1000).toFixed(1)} mm`).join(', ') || 'niente'})`, probe.length > 0])
+    checks.push(['rilievo concluso', runUntil(() => m.test.stato === 'pronto', 10)])
+    m.test.measure()
+    checks.push(['misura', runUntil(() => m.test.stato === 'risultato')])
+    if ('applyWeights' in m.test) {
+      m.test.applyWeights()
+      checks.push(['pesi applicati', runUntil(() => !m.busy)])
+      m.test.toggleGuard()
+      runUntil(() => !m.busy, 5)
+      runUntil(() => false, 2)
+      m.test.toggleGuard()
+      runUntil(() => false, 2)
+    }
+    for (const [k, ok] of checks) if (ok) console.log(`  ✓ ${label}: ${k}`); else fail(`${label}: ${k} (stato ${m.test.stato})`)
+    for (const c of m.test.clashes) fail(`${label}: compenetrazione ${c.part} in ${c.solid} di ${(c.depth * 1000).toFixed(1)} mm (${c.step})`)
+    if (!m.test.clashes.length) console.log(`  ✓ ${label}: nessuna compenetrazione (rilievo, misura${'applyWeights' in m.test ? ', pesi, carter' : ''})`)
   }
 }
 

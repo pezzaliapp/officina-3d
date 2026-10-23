@@ -65,7 +65,21 @@ EqMatch e SmontMatch sono copie indipendenti delle due macchine; equilibratrice 
 4. Cerchio `C = (M1 + M2) / 2`, pneumatico `P = (M1 − M2) / 2`, riferiti alla valvola. Il pneumatico va girato di `δ = arg C + 180° − arg P` rispetto alla prima posizione; il residuo previsto è `| |C| − |P| |`.
 5. EqMatch mostra sul pneumatico il nuovo segno giallo da portare sul segno del cerchio, con l'arco e l'angolo di rotazione. SmontMatch riceve angolo e segni e fa la rotazione (senza richiesta fa il mezzo giro), poi si torna a EqMatch per la misura di verifica.
 
+Quando il fermo per matching entra in azione la camera lo inquadra da vicino e a fine rotazione torna alla vista di prima (se nel frattempo non la si è girata a mano); la stessa inquadratura si apre scegliendo il fermo dall'elenco dei pezzi.
+
 Il pannello Fisica di EqMatch mostra M1, M2, i vettori di cerchio e pneumatico (calcolati e reali) in un diagramma polare, l'angolo ottimale, il residuo previsto e quello misurato.
+
+## Screenshot
+
+Ripresi in Chrome headless durante un giro completo di matching sulla ruota 175/65 R14 (`docs/screenshot/`).
+
+| | |
+|---|---|
+| ![Equilibratrice](docs/screenshot/01-equilibratrice.png) Equilibratrice: misura e pannello Fisica | ![Smontagomme](docs/screenshot/02-smontagomme.png) Smontagomme durante il ciclo |
+| ![EqMatch, proposta](docs/screenshot/03-eqmatch-proposta.png) EqMatch propone il matching | ![EqMatch, segni](docs/screenshot/04-eqmatch-segni.png) Segni alla valvola |
+| ![SmontMatch, fermo](docs/screenshot/05-smontmatch-fermo-in-azione.png) SmontMatch: il fermo tiene il pneumatico, il cerchio gira | ![SmontMatch, fine](docs/screenshot/06-smontmatch-fine-ciclo.png) Fine ciclo, ritorno a EqMatch |
+| ![EqMatch, risultato](docs/screenshot/07-eqmatch-risultato.png) Risultato del matching e rotazione da fare | ![EqMatch, diagramma](docs/screenshot/08-eqmatch-fisica-polare.png) Vettori nel diagramma polare |
+| ![EqMatch, verifica](docs/screenshot/09-eqmatch-verifica.png) Misura di verifica | ![Fermo dall'elenco](docs/screenshot/10-fermo-dall-elenco.png) Fermo per matching scelto dall'elenco dei pezzi |
 
 ## Valori indicativi
 
@@ -86,7 +100,7 @@ npm run verifica # verifica automatica delle macchine, senza browser
 
 ### Controllo di compenetrazione
 
-Smontagomme, EqMatch e SmontMatch controllano durante il ciclo che nessun pezzo della macchina entri nella ruota: campiona le superfici dei pezzi e prova i punti contro le sezioni di cerchio e pneumatico (tenendo conto di dove il pneumatico è schiacciato dagli utensili). Nel browser segnala in console ogni compenetrazione con passo, pezzo e profondità. `npm run verifica` esegue il ciclo completo su tutte le misure di ruota, con e senza braccio di aiuto, prova la pulsantiera e controlla che l'equilibratrice misuri ancora lo squilibrio giusto. Poi esegue il ciclo di SmontMatch senza matching e il matching completo EqMatch → SmontMatch → EqMatch, confrontando cerchio e pneumatico calcolati con quelli reali e il residuo misurato con la previsione.
+Tutte e quattro le macchine controllano durante il ciclo che nessun pezzo entri nella ruota (nelle equilibratrici anche il calibro durante il rilievo): campiona le superfici dei pezzi e prova i punti contro le sezioni di cerchio e pneumatico (tenendo conto di dove il pneumatico è schiacciato dagli utensili). Nel browser segnala in console ogni compenetrazione con passo, pezzo e profondità. `npm run verifica` esegue il ciclo completo su tutte le misure di ruota, con e senza braccio di aiuto, prova la pulsantiera e controlla che l'equilibratrice misuri ancora lo squilibrio giusto. Su equilibratrice ed EqMatch esegue rilievo, misura, pesi e carter con il controllo attivo su tutte le ruote; una prova col calibro spostato di proposito dentro la ruota conferma che il controllo lo vede. Poi esegue il ciclo di SmontMatch senza matching e il matching completo EqMatch → SmontMatch → EqMatch, confrontando cerchio e pneumatico calcolati con quelli reali e il residuo misurato con la previsione.
 
 Tecnologie: TypeScript, [three.js](https://threejs.org/) e [Vite](https://vitejs.dev/). Tutta la geometria è procedurale, senza file 3D. Nessun servizio esterno, nessun tracciamento, solo font di sistema.
 
@@ -115,6 +129,7 @@ src/
   smontmatch/             copia dello smontagomme con la rotazione del pneumatico e il fermo per matching
 public/                   manifest, service worker e icone della PWA
 tools/verifica.ts         verifica automatica (npm run verifica)
+docs/screenshot/          screenshot delle quattro macchine
 ```
 
 ## Licenza

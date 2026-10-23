@@ -1,8 +1,8 @@
 import './style.css'
 import * as THREE from 'three'
-import { createStage, homeView } from './scene'
+import { createStage, homeView, viewPose } from './scene'
 import { Section } from './core/section'
-import { Machine } from './core/machine'
+import { Machine, View } from './core/machine'
 import { createBalancer } from './equilibratrice'
 import { createTireChanger } from './smontagomme'
 import { createEqMatch } from './eqmatch'
@@ -45,6 +45,43 @@ function layout() {
 window.addEventListener('resize', layout)
 controls.addEventListener('change', () => (dirty = true))
 
+// ---------- volo della camera verso un'inquadratura dedicata ----------
+
+type Pose = { position: THREE.Vector3; target: THREE.Vector3 }
+let fly: { from: Pose; to: Pose; t: number } | null = null
+/** Vista da ritrovare quando il ciclo non chiede più la sua inquadratura. */
+let back: Pose | null = null
+let cycleView = false
+const pose = (): Pose => ({ position: camera.position.clone(), target: controls.target.clone() })
+function flyTo(to: Pose) {
+  fly = { from: pose(), to, t: 0 }
+  dirty = true
+}
+function stepFly(dt: number) {
+  if (!fly) return
+  fly.t = Math.min(fly.t + dt / 0.9, 1)
+  const k = fly.t * fly.t * (3 - 2 * fly.t)
+  camera.position.lerpVectors(fly.from.position, fly.to.position, k)
+  controls.target.lerpVectors(fly.from.target, fly.to.target, k)
+  if (fly.t >= 1) fly = null
+  dirty = true
+}
+/** Inquadratura chiesta dal ciclo: ci si va e poi si torna alla vista di prima. */
+function followCycle() {
+  const v: View | null = m.cameraView?.() ?? null
+  if (v && !cycleView) {
+    cycleView = true
+    back = pose()
+    flyTo(viewPose(camera, v))
+  } else if (!v && cycleView) {
+    cycleView = false
+    if (back) flyTo(back)
+    back = null
+  }
+}
+// chi gira la vista a mano la tiene: niente ritorno automatico
+controls.addEventListener('start', () => { fly = null; back = null })
+
 // ---------- cambio macchina ----------
 
 function open(id: string) {
@@ -72,6 +109,9 @@ function open(id: string) {
   buildPartList()
   select(null)
   layout()
+  fly = null
+  back = null
+  cycleView = false
   homeView(camera, controls, m.view)
   dirty = true
 }
@@ -90,7 +130,7 @@ ui.maniglia.addEventListener('click', () => {
   setTimeout(layout, 260)
 })
 ui.btnInfo.addEventListener('click', () => ui.info.showModal())
-ui.vista.addEventListener('click', () => { homeView(camera, controls, m.view); dirty = true })
+ui.vista.addEventListener('click', () => { fly = null; back = null; homeView(camera, controls, m.view); dirty = true })
 ui.flussi.addEventListener('change', () => { flows = ui.flussi.checked; dirty = true })
 ui.giro.addEventListener('change', () => { controls.autoRotate = ui.giro.checked })
 ui.sez.addEventListener('input', () => {
@@ -116,7 +156,11 @@ function buildPartList() {
     const b = document.createElement('button')
     b.textContent = m.parts[id].name
     b.dataset.id = id
-    b.addEventListener('click', () => select(selected === id ? null : id))
+    b.addEventListener('click', () => {
+      select(selected === id ? null : id)
+      const v = selected && m.partView?.(selected)
+      if (v) flyTo(viewPose(camera, v))
+    })
     ui.elenco.append(b)
   }
 }
@@ -188,6 +232,8 @@ function frame(now: number) {
   timer.update(now)
   const dt = Math.max(0, Math.min(timer.getDelta(), 0.05))
   if (m.update(dt, now, flows)) dirty = true
+  followCycle()
+  stepFly(dt)
   updateUi(now)
   if (controls.autoRotate) dirty = true
   controls.update()

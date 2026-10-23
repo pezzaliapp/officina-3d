@@ -1,11 +1,16 @@
 import { Section } from '../core/section'
 import { Machine, IND } from '../core/machine'
+import { InterferenceCheck, Hit } from '../core/interference'
 import { num, drawScope } from '../ui'
 import { BalancerModel } from './model'
 import { ConsoleDisplay } from './display'
 import { Controller } from './controller'
 import { PARTS } from './parts'
 import { WHEELS, LAYOUT, MACHINE, wheelGeometry, abs, arg } from './physics'
+
+/** Tolleranza del controllo di compenetrazione, m. */
+const CLASH_TOL = 0.002
+const CHECK_EVERY = 3
 
 const PANE = `
   <p data-id="messaggio" class="messaggio">Premi Avvia misura</p>
@@ -33,7 +38,24 @@ const TEXT = `
   <h3>Come misura la macchina</h3>
   <p>L'albero è una trave su due appoggi: i sensori A e B. Con le equazioni di equilibrio di forze e momenti, dalle due forze lette e dalle distanze dei piani (calibro <i>a</i>, larghezza <i>b</i>) si ricavano i due squilibri. L'encoder dà la fase, quindi l'angolo in cui mettere ciascun peso, dalla parte opposta allo squilibrio.</p>`
 
-export function createBalancer(section: Section): Machine {
+/** Equilibratrice con gli agganci per la verifica automatica (tools/verifica.ts). */
+export interface Balancer extends Machine {
+  readonly test: {
+    setWheel(id: string): boolean
+    measure(): void
+    applyWeights(): void
+    toggleGuard(): void
+    readonly stato: string
+    /** Corsa attuale dell'asta del calibro, m. */
+    readonly calibro: number
+    checkEveryFrame(): void
+    readonly clashes: (Hit & { step: string })[]
+    /** Prova del controllo: sposta il calibro di dy (m, verso il basso se negativo) e riporta cosa tocca. */
+    probeCaliper(dy: number): Hit[]
+  }
+}
+
+export function createBalancer(section: Section): Balancer {
   const lcd = new ConsoleDisplay()
   const model = new BalancerModel(section, lcd.texture)
   const ctrl = new Controller()
@@ -50,6 +72,30 @@ export function createBalancer(section: Section): Machine {
   let lastLcd = 0
   let changed = true
 
+  // ---------- controllo di compenetrazione ----------
+
+  const checker = new InterferenceCheck(model.root, (o) => model.isWheelOrMarker(o))
+  const clashes: (Hit & { step: string })[] = []
+  const seen = new Set<string>()
+  let frame = 0, checkEvery = CHECK_EVERY
+  function checkClash() {
+    for (const h of checker.run(model.wheelSolids(), () => CLASH_TOL)) {
+      const key = spec.id + '|' + ctrl.stato + '|' + h.part + '|' + h.solid
+      if (seen.has(key)) continue
+      seen.add(key)
+      clashes.push({ ...h, step: ctrl.stato })
+      console.warn(`[compenetrazione] Equilibratrice ${spec.label} · ${ctrl.stato} · ${PARTS[h.part]?.name ?? h.part} dentro ${h.solid} di ${num(h.depth * 1000, 1)} mm`)
+    }
+  }
+  const setWheel = (id: string) => {
+    const next = WHEELS.find((w) => w.id === id)!
+    if (!ctrl.setWheel(next, xInnerOf(next))) return false
+    spec = next
+    model.buildWheel(spec)
+    changed = true
+    return true
+  }
+
   return {
     id: 'equilibratrice',
     name: 'Equilibratrice',
@@ -62,6 +108,24 @@ export function createBalancer(section: Section): Machine {
     physicsText: TEXT,
     get busy() { return ctrl.busy },
 
+    test: {
+      setWheel,
+      measure() { ctrl.measure() },
+      applyWeights() { ctrl.applyWeights() },
+      toggleGuard() { ctrl.toggleGuard() },
+      get stato() { return ctrl.stato },
+      get calibro() { return model.calSlide.position.x },
+      checkEveryFrame() { checkEvery = 1 },
+      clashes,
+      probeCaliper(dy) {
+        const y = model.calSlide.position.y
+        model.calSlide.position.y = y + dy
+        const hits = checker.run(model.wheelSolids(), () => CLASH_TOL).filter((h) => h.part === 'calibro')
+        model.calSlide.position.y = y
+        return hits
+      },
+    },
+
     mount(pane) {
       pane.innerHTML = PANE
       el = {}
@@ -69,13 +133,7 @@ export function createBalancer(section: Section): Machine {
       const sel = el.ruota as HTMLSelectElement
       for (const w of WHEELS) sel.append(new Option(w.label, w.id))
       sel.value = spec.id
-      sel.addEventListener('change', () => {
-        const next = WHEELS.find((w) => w.id === sel.value)!
-        if (!ctrl.setWheel(next, xInnerOf(next))) { sel.value = spec.id; return }
-        spec = next
-        model.buildWheel(spec)
-        changed = true
-      })
+      sel.addEventListener('change', () => { if (!setWheel(sel.value)) sel.value = spec.id })
       el.misura.addEventListener('click', () => ctrl.measure())
       el.pesi.addEventListener('click', () => ctrl.applyWeights())
       el.nuova.addEventListener('click', () => ctrl.newWheel())
@@ -115,6 +173,7 @@ export function createBalancer(section: Section): Machine {
           if (on) cab.curve.getPointAt((((pulse * (cab.kind === 'encoder' ? 1.6 : 1) + i / cab.dots.length) % 1) + 1) % 1, d.position)
         })
       }
+      if ((moving || changed) && ++frame % checkEvery === 0) checkClash()
 
       let redraw = moving || live || changed
       changed = false
@@ -161,6 +220,7 @@ export function createBalancer(section: Section): Machine {
         ['Distanza a', `${num(b.xInner * 1000, 0)} mm`],
         ['Larghezza b', `${num(b.geo.width * 1000, 0)} mm`],
         ['Raggio dei pesi', `${num(b.rWeight * 1000, 0)} mm`],
+        ['Compenetrazioni con la ruota', `${clashes.length}`],
       ]
       if (r && v) {
         rows.push(

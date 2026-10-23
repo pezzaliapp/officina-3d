@@ -70,6 +70,11 @@ export interface EqMatch extends Machine {
     other(): void
     checkEveryFrame(): void
     readonly clashes: (Hit & { step: string })[]
+    readonly stato: string
+    /** Corsa attuale dell'asta del calibro, m. */
+    readonly calibro: number
+    /** Prova del controllo: sposta il calibro di dy (m, verso il basso se negativo) e riporta cosa tocca. */
+    probeCaliper(dy: number): Hit[]
     /** Risultato del matching: vettori misurati e previsione. */
     readonly result: Mt
     readonly staticG: number | null
@@ -326,6 +331,15 @@ export function createEqMatch(section: Section): EqMatch {
       other,
       checkEveryFrame() { checkEvery = 1 },
       clashes,
+      get stato() { return ctrl.stato },
+      get calibro() { return model.calSlide.position.x },
+      probeCaliper(dy) {
+        const y = model.calSlide.position.y
+        model.calSlide.position.y = y + dy
+        const hits = checker.run(model.wheelSolids(), () => CLASH_TOL).filter((h) => h.part === 'calibro')
+        model.calSlide.position.y = y
+        return hits
+      },
       result: mt,
       get staticG() { return ctrl.result?.staticG ?? null },
     },

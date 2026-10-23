@@ -2,7 +2,8 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { Section } from '../core/section'
 import { MachineModel, LOOK } from '../core/model'
-import { wheelMeshes } from '../core/wheel'
+import { wheelMeshes, rimSection, tireShell } from '../core/wheel'
+import type { Solid } from '../core/interference'
 import { revolveX, cylX, tubeX, box, beltPath, RX } from '../core/geo'
 import { LAYOUT, WheelSpec, wheelGeometry, Weight } from './physics'
 
@@ -32,6 +33,7 @@ export class BalancerModel extends MachineModel {
   private cablesG = new THREE.Group()
   private calStem!: THREE.Mesh
   private calTip!: THREE.Mesh
+  private spec!: WheelSpec
 
   constructor(section: Section, screenTex: THREE.Texture) {
     super(section)
@@ -344,8 +346,33 @@ export class BalancerModel extends MachineModel {
     }
   }
 
+  /** Cerchio e pneumatico come solidi per il controllo di compenetrazione. */
+  wheelSolids(): Solid[] {
+    const e = this.spec.et, R = wheelGeometry(this.spec).rimR
+    const disc: RX[] = [[0.0285, e], [R - 0.0055, e], [R - 0.0055, e + 0.016], [0.0285, e + 0.016]]
+    return [
+      { name: 'cerchio', frame: this.rimG, sections: this.sections(() => [rimSection(this.spec), disc]) },
+      { name: 'pneumatico', frame: this.tireG, sections: this.sections(() => [tireShell(this.spec)], 1) },
+    ]
+  }
+
+  private secs: { spec: WheelSpec; s: RX[][] }[] = []
+  /** Sezioni in cache: la griglia delle distanze si calcola una volta per misura di ruota. */
+  private sections(make: () => RX[][], i = 0) {
+    const c = this.secs[i]
+    if (c?.spec === this.spec) return c.s
+    this.secs[i] = { spec: this.spec, s: make() }
+    return this.secs[i].s
+  }
+
+  /** La ruota, i pesi e gli indicatori non si controllano contro la ruota. */
+  isWheelOrMarker(o: THREE.Object3D) {
+    return o === this.rimG || o === this.tireG || o === this.weightG || !!o.userData.noPick || o.type === 'ArrowHelper'
+  }
+
   /** Ricostruisce cerchio e pneumatico per la misura scelta. */
   buildWheel(spec: WheelSpec) {
+    this.spec = spec
     this.wheel.position.x = LAYOUT.flangeFace - spec.et
     this.clear(this.rimG)
     this.clear(this.tireG)

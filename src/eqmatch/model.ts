@@ -307,7 +307,7 @@ export class BalancerModel extends MachineModel {
     this.calSlide.userData.part = 'calibro'
     this.calSlide.userData.front = true
     this.mesh(this.calSlide, cylX(0.008, -0.36, 0.03).translate(0, 0.62, 0), LOOK.steel)
-    // puntale: stelo che sale dall'asta fino alla sfera, regolato sulla misura del cerchio (setGaugeTip)
+    // puntale: stelo che sale dall'asta fino alla sfera, regolato sulla misura del cerchio (buildWheel)
     this.calStem = this.mesh(this.calSlide, new THREE.CylinderGeometry(0.005, 0.004, 1, 12).translate(0.03, -0.5, 0), LOOK.steel)
     this.calStem.position.y = 0.62
     this.calTip = this.mesh(this.calSlide, new THREE.SphereGeometry(0.009, 14, 10).translate(0.03, 0, 0), LOOK.accent)
