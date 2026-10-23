@@ -110,12 +110,12 @@ npm run dev      # server di sviluppo
 npm run build    # controllo dei tipi e build in dist/
 npm run preview  # anteprima della build
 npm run icons    # rigenera le icone PNG della PWA
-npm run verifica # verifica automatica delle macchine, senza browser
+npm run verifica # verifica automatica delle macchine, poi la misura nel browser (Chromium e WebKit)
 ```
 
 ### Controllo di compenetrazione
 
-Tutte e quattro le macchine controllano durante il ciclo che nessun pezzo entri nella ruota (nelle equilibratrici anche il calibro durante il rilievo): campiona le superfici dei pezzi e prova i punti contro le sezioni di cerchio e pneumatico (tenendo conto di dove il pneumatico è schiacciato dagli utensili). Nel browser segnala in console ogni compenetrazione con passo, pezzo e profondità. `npm run verifica` esegue il ciclo completo su tutte le misure di ruota, con e senza braccio di aiuto, prova la pulsantiera e controlla che l'equilibratrice misuri ancora lo squilibrio giusto. Su equilibratrice ed EqMatch esegue rilievo, misura, pesi e carter con il controllo attivo su tutte le ruote; una prova col calibro spostato di proposito dentro la ruota conferma che il controllo lo vede. Poi esegue il ciclo di SmontMatch senza matching e il matching completo EqMatch → SmontMatch → EqMatch, confrontando cerchio e pneumatico calcolati con quelli reali e il residuo misurato con la previsione.
+Tutte e quattro le macchine controllano durante il ciclo che nessun pezzo entri nella ruota (nelle equilibratrici anche il calibro durante il rilievo): campiona le superfici dei pezzi e prova i punti contro le sezioni di cerchio e pneumatico (tenendo conto di dove il pneumatico è schiacciato dagli utensili). Nel browser segnala in console ogni compenetrazione con passo, pezzo e profondità. `npm run verifica` esegue il ciclo completo su tutte le misure di ruota, con e senza braccio di aiuto, prova la pulsantiera e controlla che l'equilibratrice misuri ancora lo squilibrio giusto. Su equilibratrice ed EqMatch esegue rilievo, misura, pesi e carter con il controllo attivo su tutte le ruote; una prova col calibro spostato di proposito dentro la ruota conferma che il controllo lo vede. Poi esegue il ciclo di SmontMatch senza matching e il matching completo EqMatch → SmontMatch → EqMatch, confrontando cerchio e pneumatico calcolati con quelli reali e il residuo misurato con la previsione. Infine `tools/verifica-browser.mjs` apre l'app in Chromium e in WebKit (il motore di Safari) con [Playwright](https://playwright.dev/), carica la macchina di esempio con **＋ Carica macchina**, preme **Avvia misura** con il carter alzato tenendo premuto il tasto come una persona e aspetta il risultato, controlla che le righe dei ricambi contengano il loro testo e tratta come errore ogni messaggio d'errore in console e ogni richiesta che esce dal server locale. I browser si installano una volta con `npx playwright install chromium webkit`.
 
 Tecnologie: TypeScript, [three.js](https://threejs.org/) e [Vite](https://vitejs.dev/). Tutta la geometria è procedurale, senza file 3D. Nessun servizio esterno, nessun tracciamento, solo font di sistema.
 
@@ -145,6 +145,7 @@ src/
   privata/                lettore delle macchine private: formato, archivio sul dispositivo, modello
 public/                   manifest, service worker e icone della PWA
 tools/verifica.ts         verifica automatica (npm run verifica)
+tools/verifica-browser.mjs  misura nel browser, Chromium e WebKit (npm run verifica)
 docs/screenshot/          screenshot delle macchine
 docs/formato-macchina.md  formato dei file delle macchine private
 docs/esempi/              macchina di prova inventata

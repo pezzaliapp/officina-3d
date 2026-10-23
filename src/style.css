@@ -192,14 +192,17 @@ button.primario { background: var(--accento); border-color: var(--accento); colo
 .mini:hover { color: var(--testo); }
 .privata { border-top: 1px solid var(--linea); margin-top: 14px; padding-top: 10px; display: grid; gap: 10px; }
 .solo-qui { margin: 0; font-size: 12px; color: var(--tenue); }
-.ricambi { display: grid; gap: 4px; max-height: 320px; overflow-y: auto; }
+/* colonna di righe che non si restringono: ogni riga è alta quanto il suo testo */
+.ricambi { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
 .ricambio {
-  display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: baseline; text-align: left;
+  flex: none; height: auto;
+  display: grid; grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto; gap: 8px; align-items: baseline; text-align: left;
   border: 1px solid var(--linea); border-radius: 8px; background: #1d232b; color: inherit; font: inherit; font-size: 13px;
   padding: 7px 10px; min-height: 40px; cursor: pointer;
 }
+.ricambio > * { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .ricambio b { color: #ffd21e; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
-.ricambio code { color: var(--tenue); font-size: 12px; }
+.ricambio code { color: var(--tenue); font-size: 12px; max-width: 11em; }
 .ricambio small { color: var(--tenue); }
 .ricambio:disabled { opacity: 0.5; cursor: default; }
 .avviso-testo { max-height: 50vh; overflow-y: auto; font-size: 13px; }

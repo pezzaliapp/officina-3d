@@ -7,7 +7,7 @@ import { createBalancer } from './equilibratrice'
 import { createTireChanger } from './smontagomme'
 import { createEqMatch } from './eqmatch'
 import { createSmontMatch } from './smontmatch'
-import { ui, setupTabs, esc } from './ui'
+import { ui, setupTabs, esc, setText } from './ui'
 import { nav } from './core/nav'
 import { leggiMacchina, ErroreFormato } from './privata/format'
 import { createPrivateMachine } from './privata'
@@ -293,8 +293,8 @@ function updateUi(now: number) {
   if (now - lastUi < 120) return
   lastUi = now
   const s = m.refresh()
-  ui.hudStato.textContent = s.status
-  ui.hudRpm.textContent = s.detail
+  setText(ui.hudStato, s.status)
+  setText(ui.hudRpm, s.detail)
   if (tab === 'fisica') {
     ui.fisica.innerHTML = m.physics().map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')
     const extra = m.physicsExtra?.() ?? ''

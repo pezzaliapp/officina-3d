@@ -74,7 +74,8 @@ export class Controller {
     if (this.busy) return
     this.result = null
     this.stato = 'carter'
-    this.messaggio = 'Carter abbassato: avvio'
+    // col carter alzato la misura lo abbassa da sola, e lo dice
+    this.messaggio = this.guard === 0 ? 'Carter abbassato: avvio' : 'Abbasso il carter per la misura…'
     this.guardTarget = 0
   }
 

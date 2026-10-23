@@ -3,7 +3,7 @@ import { Section } from '../core/section'
 import { Machine, IND } from '../core/machine'
 import { InterferenceCheck, Hit } from '../core/interference'
 import { WHEELS, WheelSpec, wheelGeometry, tireHalfWidth } from '../core/wheel'
-import { num } from '../ui'
+import { num, setText } from '../ui'
 import { PARTS } from './parts'
 import { TireChangerModel, TT_Y, TT_Z, COL_P, BB_P, BLADE, BLADE_Y, BLADE_HALF, PAD_X, BB_LEVER, BB_ANCHOR, HOLD, JAW_LIP, JAW_TOP, HelperTool, Press } from './model'
 import { SPEC, BAR, area, tireData, turntableTorque, jawForce, inflowRate, pressureRise, reduction } from './physics'
@@ -908,10 +908,10 @@ export function createTireChanger(section: Section): TireChanger {
 
     refresh() {
       if (el.messaggio) {
-        el.messaggio.textContent = st.msg
-        el.pt.textContent = `${num(st.pTire, 2)} bar`
-        el.fb.textContent = `${num(st.bladeForce / 1000)} kN`
-        el.rpm.textContent = `${num((st.ttOmega * 30) / Math.PI, 0)} giri/min`
+        setText(el.messaggio, st.msg)
+        setText(el.pt, `${num(st.pTire, 2)} bar`)
+        setText(el.fb, `${num(st.bladeForce / 1000)} kN`)
+        setText(el.rpm, `${num((st.ttOmega * 30) / Math.PI, 0)} giri/min`)
         const cur = ORDER.indexOf(st.fase)
         const apart = model.exploded > 0.01
         document.querySelectorAll<HTMLButtonElement>('#pane-lavoro [data-step]').forEach((b, i) => {
@@ -921,7 +921,7 @@ export function createTireChanger(section: Section): TireChanger {
         })
         const ciclo = el.ciclo as HTMLButtonElement
         ciclo.disabled = !!job || apart
-        ciclo.textContent = apart ? 'Rimonta per lavorare' : '▶ Ciclo completo'
+        setText(ciclo, apart ? 'Rimonta per lavorare' : '▶ Ciclo completo')
         ;(el.nuovo as HTMLButtonElement).disabled = !!job || apart || st.fase === 'pronta'
         ;(el.ruota as HTMLSelectElement).disabled = !!job || st.fase !== 'pronta' || st.bb.sides > 0
         ;(el['b-stallona'] as HTMLButtonElement).disabled = !!job || apart || st.fase !== 'pronta'

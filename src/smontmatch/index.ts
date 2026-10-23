@@ -4,7 +4,7 @@ import { Machine, View, IND } from '../core/machine'
 import { InterferenceCheck, Hit } from '../core/interference'
 import { WHEELS, WheelSpec, wheelGeometry, tireHalfWidth } from '../core/wheel'
 import { match, touch, turnFor, halfTurnMarks, Marks, MatchRequest, VALVE } from '../core/match'
-import { num } from '../ui'
+import { num, setText } from '../ui'
 import { nav } from '../core/nav'
 import { PARTS } from './parts'
 import { TireChangerModel, MATCH_FACE, MATCH_GAP, TT_Y, TT_Z, COL_P, BB_P, BLADE, BLADE_Y, BLADE_HALF, PAD_X, BB_LEVER, BB_ANCHOR, HOLD, JAW_LIP, JAW_TOP, HelperTool, Press } from './model'
@@ -1071,10 +1071,10 @@ export function createSmontMatch(section: Section): TireChanger {
 
     refresh() {
       if (el.messaggio) {
-        el.messaggio.textContent = st.msg
-        el.pt.textContent = `${num(st.pTire, 2)} bar`
-        el.fb.textContent = `${num(st.bladeForce / 1000)} kN`
-        el.rpm.textContent = `${num((st.ttOmega * 30) / Math.PI, 0)} giri/min`
+        setText(el.messaggio, st.msg)
+        setText(el.pt, `${num(st.pTire, 2)} bar`)
+        setText(el.fb, `${num(st.bladeForce / 1000)} kN`)
+        setText(el.rpm, `${num((st.ttOmega * 30) / Math.PI, 0)} giri/min`)
         const cur = order().indexOf(st.fase), list = steps()
         const apart = model.exploded > 0.01
         document.querySelectorAll<HTMLButtonElement>('#pane-lavoro [data-step]').forEach((b, i) => {
@@ -1086,19 +1086,19 @@ export function createSmontMatch(section: Section): TireChanger {
         el['m-box'].hidden = el['m-info'].hidden = !matching
         if (matching) {
           const req = marks ? turnFor(marks, st.theta) : 0
-          el['m-ang'].textContent = `${Math.abs(deg(st.turned))}°`
-          el['m-req'].textContent = st.fase === 'ruotata' || st.fase === 'gonfia' ? `${Math.abs(deg(st.turnReq))}° fatti` : `${Math.abs(deg(req))}° ${req >= 0 ? '↺' : '↻'}`
+          setText(el['m-ang'], `${Math.abs(deg(st.turned))}°`)
+          setText(el['m-req'], st.fase === 'ruotata' || st.fase === 'gonfia' ? `${Math.abs(deg(st.turnReq))}° fatti` : `${Math.abs(deg(req))}° ${req >= 0 ? '↺' : '↻'}`)
           const from = marksFrom === 'm2' ? 'da EqMatch: mezzo giro per la seconda misura' : marksFrom === 'ottimale' ? 'da EqMatch: angolo ottimale del matching' : 'senza richiesta da EqMatch: mezzo giro (180°)'
           const done = st.fase === 'gonfia' && st.turned !== 0 ? (marksFrom ? ', rotazione eseguita' : ' eseguito') : ''
-          el['m-info'].textContent = `Segni ${from}${done}. Senso visto dall'alto, lato esterno della ruota.`
+          setText(el['m-info'], `Segni ${from}${done}. Senso visto dall'alto, lato esterno della ruota.`)
         }
         ;(el.matching as HTMLInputElement).disabled = !!job || st.fase !== 'pronta' || st.bb.sides > 0
         ;(el.helper as HTMLInputElement).disabled = matching
         el.torna.parentElement!.hidden = !(matching && st.fase === 'gonfia' && st.turned !== 0 && !job)
-        el.torna.textContent = `↩ Torna a ${match.ownerName} per la verifica`
+        setText(el.torna, `↩ Torna a ${match.ownerName} per la verifica`)
         const ciclo = el.ciclo as HTMLButtonElement
         ciclo.disabled = !!job || apart
-        ciclo.textContent = apart ? 'Rimonta per lavorare' : '▶ Ciclo completo'
+        setText(ciclo, apart ? 'Rimonta per lavorare' : '▶ Ciclo completo')
         ;(el.nuovo as HTMLButtonElement).disabled = !!job || apart || st.fase === 'pronta'
         ;(el.ruota as HTMLSelectElement).disabled = !!job || st.fase !== 'pronta' || st.bb.sides > 0
         ;(el['b-stallona'] as HTMLButtonElement).disabled = !!job || apart || st.fase !== 'pronta'

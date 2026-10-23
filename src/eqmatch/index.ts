@@ -4,7 +4,7 @@ import { Machine, PartInfo, View, IND } from '../core/machine'
 import { nav } from '../core/nav'
 import { InterferenceCheck, Hit } from '../core/interference'
 import { match, touch, turnFor, wrapAngle, VALVE } from '../core/match'
-import { num, drawScope } from '../ui'
+import { num, drawScope, setText } from '../ui'
 import { BalancerModel, BalancerLike } from './model'
 import { ConsoleDisplay } from './display'
 import { Controller } from './controller'
@@ -468,15 +468,15 @@ export function createEqMatch(section: Section, options?: EqMatchOptions): EqMat
     refresh() {
       const ds = ctrl.display(spec.rimInch, spec.rimWidthInch)
       if (el.messaggio) {
-        el.messaggio.textContent = ctrl.messaggio
+        setText(el.messaggio, ctrl.messaggio)
         for (const [e, v] of [[el['r-int'], ds.int], [el['r-est'], ds.est]] as const) {
-          e.textContent = v === 'OK' || v === '---' ? v : v + ' g'
+          setText(e, v === 'OK' || v === '---' ? v : v + ' g')
           e.classList.toggle('ok', v === 'OK')
         }
         const apart = model.exploded > 0.01
         const misura = el.misura as HTMLButtonElement
         misura.disabled = ctrl.busy || apart
-        misura.textContent = apart ? 'Rimonta per misurare' : '▶ Avvia misura'
+        setText(misura, apart ? 'Rimonta per misurare' : '▶ Avvia misura')
         const inMatch = mt.step !== 'off' && mt.step !== 'proposta' && mt.step !== 'fine'
         ;(el.pesi as HTMLButtonElement).disabled = inMatch || ctrl.stato !== 'risultato' || !ctrl.result || (ctrl.result.int.shown === 0 && ctrl.result.est.shown === 0)
         ;(el.nuova as HTMLButtonElement).disabled = ctrl.busy
@@ -484,11 +484,11 @@ export function createEqMatch(section: Section, options?: EqMatchOptions): EqMat
         const bx = box()
         el.match.hidden = !bx
         if (bx) {
-          el['m-titolo'].textContent = bx.title
-          el['m-testo'].textContent = bx.text
+          setText(el['m-titolo'], bx.title)
+          setText(el['m-testo'], bx.text)
           const a = el['m-avanti'] as HTMLButtonElement, o = el['m-altro'] as HTMLButtonElement
-          a.textContent = bx.next
-          o.textContent = bx.other
+          setText(a, bx.next)
+          setText(o, bx.other)
           a.disabled = bx.busy
           o.disabled = ctrl.busy
           o.hidden = bx.other === bx.next

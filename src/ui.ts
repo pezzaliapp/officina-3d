@@ -48,6 +48,15 @@ export function setupTabs(onChange: (tab: string) => void) {
 /** Formato numerico italiano. */
 export const num = (v: number, d = 1) => v.toLocaleString('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d })
 
+/**
+ * Scrive un testo solo se è cambiato. I pannelli si aggiornano più volte al secondo:
+ * riscrivere il testo di un pulsante sostituisce il nodo sotto il puntatore e Safari
+ * (WebKit) non genera il click se il tasto resta premuto mentre il nodo cambia.
+ */
+export function setText(e: HTMLElement, s: string) {
+  if (e.textContent !== s) e.textContent = s
+}
+
 export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 
 /** Oscilloscopio dei due sensori, scorrimento continuo. */

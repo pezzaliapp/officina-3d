@@ -195,4 +195,4 @@ Tutti questi valori, nella macchina pubblica come nell'esempio, sono **indicativ
 }
 ```
 
-`npm run verifica` legge l'esempio, prova a caricare dieci file sbagliati (non JSON, formato o versione diversi, campi sconosciuti, numeri fuori scala, forme non previste, id ripetuti, nomi come `__proto__`, troppi punti) e controlla che vengano tutti rifiutati. Poi esegue smontaggio, tavole, misura e matching completo sulla macchina di prova, con ogni accesso alla rete trattato come errore.
+`npm run verifica` legge l'esempio, prova a caricare dieci file sbagliati (non JSON, formato o versione diversi, campi sconosciuti, numeri fuori scala, forme non previste, id ripetuti, nomi come `__proto__`, troppi punti) e controlla che vengano tutti rifiutati. Poi esegue smontaggio, tavole, misura e matching completo sulla macchina di prova, con ogni accesso alla rete trattato come errore. Infine carica la macchina di prova dal pulsante **＋ Carica macchina** in Chromium e in WebKit (Safari) e ne esegue una misura completa, anche lì senza nessuna richiesta fuori dal server locale.

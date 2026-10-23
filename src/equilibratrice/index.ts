@@ -1,7 +1,7 @@
 import { Section } from '../core/section'
 import { Machine, IND } from '../core/machine'
 import { InterferenceCheck, Hit } from '../core/interference'
-import { num, drawScope } from '../ui'
+import { num, drawScope, setText } from '../ui'
 import { BalancerModel } from './model'
 import { ConsoleDisplay } from './display'
 import { Controller } from './controller'
@@ -188,15 +188,15 @@ export function createBalancer(section: Section): Balancer {
     refresh() {
       const ds = ctrl.display(spec.rimInch, spec.rimWidthInch)
       if (el.messaggio) {
-        el.messaggio.textContent = ctrl.messaggio
+        setText(el.messaggio, ctrl.messaggio)
         for (const [e, v] of [[el['r-int'], ds.int], [el['r-est'], ds.est]] as const) {
-          e.textContent = v === 'OK' || v === '---' ? v : v + ' g'
+          setText(e, v === 'OK' || v === '---' ? v : v + ' g')
           e.classList.toggle('ok', v === 'OK')
         }
         const apart = model.exploded > 0.01
         const misura = el.misura as HTMLButtonElement
         misura.disabled = ctrl.busy || apart
-        misura.textContent = apart ? 'Rimonta per misurare' : '▶ Avvia misura'
+        setText(misura, apart ? 'Rimonta per misurare' : '▶ Avvia misura')
         ;(el.pesi as HTMLButtonElement).disabled = ctrl.stato !== 'risultato' || !ctrl.result || (ctrl.result.int.shown === 0 && ctrl.result.est.shown === 0)
         ;(el.nuova as HTMLButtonElement).disabled = ctrl.busy
         ;(el.ruota as HTMLSelectElement).disabled = ctrl.busy
