@@ -14,6 +14,7 @@ export const ui = {
   elenco: $('elenco-parti'),
   fisica: $('fisica-live'),
   fisicaTesto: $('fisica-testo'),
+  fisicaExtra: $('fisica-extra'),
   lavoro: $('pane-lavoro'),
   tabLavoro: $('tab-lavoro'),
   macchina: $<HTMLSelectElement>('sel-macchina'),

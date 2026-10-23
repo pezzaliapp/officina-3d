@@ -33,6 +33,8 @@ export interface Machine {
   refresh(): { status: string; detail: string }
   /** Righe della tabella dei valori in tempo reale. */
   physics(): [string, string][]
+  /** HTML aggiuntivo sotto la tabella della fisica (es. un diagramma); facoltativo. */
+  physicsExtra?(): string
 }
 
 export const IND = '<span class="ind">indicativo</span>'

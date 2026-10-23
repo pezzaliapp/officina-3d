@@ -5,6 +5,8 @@ import { Section } from './core/section'
 import { Machine } from './core/machine'
 import { createBalancer } from './equilibratrice'
 import { createTireChanger } from './smontagomme'
+import { createEqMatch } from './eqmatch'
+import { createSmontMatch } from './smontmatch'
 import { ui, setupTabs, esc } from './ui'
 
 const host = document.getElementById('scena')!
@@ -15,6 +17,8 @@ const section = new Section()
 const FACTORIES: Record<string, (s: Section) => Machine> = {
   equilibratrice: createBalancer,
   smontagomme: createTireChanger,
+  eqmatch: createEqMatch,
+  smontmatch: createSmontMatch,
 }
 const built = new Map<string, Machine>()
 let m!: Machine
@@ -168,7 +172,11 @@ function updateUi(now: number) {
   const s = m.refresh()
   ui.hudStato.textContent = s.status
   ui.hudRpm.textContent = s.detail
-  if (tab === 'fisica') ui.fisica.innerHTML = m.physics().map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')
+  if (tab === 'fisica') {
+    ui.fisica.innerHTML = m.physics().map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')
+    const extra = m.physicsExtra?.() ?? ''
+    if (ui.fisicaExtra.dataset.html !== extra) { ui.fisicaExtra.innerHTML = extra; ui.fisicaExtra.dataset.html = extra }
+  }
 }
 
 // ---------- animazione ----------

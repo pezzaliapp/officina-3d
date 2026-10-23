@@ -1,11 +1,13 @@
 # Officina 3D
 
-Macchine da officina da esplorare nel browser, anche dal telefono. Si sceglie la macchina dal menu in alto (o con l'indirizzo `#equilibratrice` / `#smontagomme`):
+Macchine da officina da esplorare nel browser, anche dal telefono. Si sceglie la macchina dal menu in alto (o con l'indirizzo `#equilibratrice`, `#smontagomme`, `#eqmatch`, `#smontmatch`):
 
 - **Equilibratrice per ruote auto**: misura davvero lo squilibrio della ruota.
 - **Smontagomme con braccio di aiuto**: stallona, smonta, rimonta e gonfia il pneumatico.
+- **EqMatch**: l'equilibratrice con il matching di pneumatico e cerchio.
+- **SmontMatch**: lo smontagomme che gira il pneumatico sul cerchio per il matching.
 
-Entrambe si possono ruotare, sezionare e smontare pezzo per pezzo.
+Tutte si possono ruotare, sezionare e smontare pezzo per pezzo.
 
 **Prova l'app:** https://www.alessandropezzali.it/officina-3d/
 
@@ -53,6 +55,18 @@ In sezione si vedono i pistoni nei cilindri e tutto il circuito dell'aria, con l
 - Coppia al piatto `C = η · P / ω` dopo cinghia e vite senza fine.
 - Gonfiaggio isotermo a volume costante: `dp = p_atm · dV_aria / V`, con portata che cala avvicinandosi alla pressione di linea.
 
+## Matching (EqMatch e SmontMatch)
+
+EqMatch e SmontMatch sono copie indipendenti delle due macchine; equilibratrice e smontagomme restano come prima. Le due macchine nuove condividono la stessa ruota (`src/core/match.ts`): nella simulazione cerchio e pneumatico hanno ciascuno il proprio squilibrio nascosto, e il pneumatico ha un angolo sul cerchio.
+
+1. Dopo la misura, se lo squilibrio statico supera la soglia (predefinita 60 g, indicativa, si cambia nel pannello) EqMatch propone il matching.
+2. La valvola va a ore 12: si segna il cerchio alla valvola (giallo) e il pneumatico allineato (bianco). Prima misura M1.
+3. SmontMatch gira il pneumatico di 180° sul cerchio: sgonfiaggio, stallonatura dei due talloni, cerchio bloccato dalle griffe, pneumatico tenuto fermo dal disco premitallone e dal **fermo per matching**, piatto che gira il cerchio finché i segni coincidono, poi gonfiaggio e tallonamento. Seconda misura M2.
+4. Cerchio `C = (M1 + M2) / 2`, pneumatico `P = (M1 − M2) / 2`, riferiti alla valvola. Il pneumatico va girato di `δ = arg C + 180° − arg P` rispetto alla prima posizione; il residuo previsto è `| |C| − |P| |`.
+5. EqMatch mostra sul pneumatico il nuovo segno giallo da portare sul segno del cerchio, con l'arco e l'angolo di rotazione. SmontMatch riceve angolo e segni e fa la rotazione (senza richiesta fa il mezzo giro), poi si torna a EqMatch per la misura di verifica.
+
+Il pannello Fisica di EqMatch mostra M1, M2, i vettori di cerchio e pneumatico (calcolati e reali) in un diagramma polare, l'angolo ottimale, il residuo previsto e quello misurato.
+
 ## Valori indicativi
 
 Le dimensioni delle ruote derivano dalla sigla del pneumatico (es. 205/55 R16). Tutti gli altri dati delle macchine (velocità, coppie, potenze, alesaggi dei cilindri, masse, forze di tenuta dei talloni, pressioni di tallonamento, portate...) **sono valori indicativi** e nell'app sono marcati come tali.
@@ -67,12 +81,12 @@ npm run dev      # server di sviluppo
 npm run build    # controllo dei tipi e build in dist/
 npm run preview  # anteprima della build
 npm run icons    # rigenera le icone PNG della PWA
-npm run verifica # verifica automatica delle due macchine, senza browser
+npm run verifica # verifica automatica delle macchine, senza browser
 ```
 
 ### Controllo di compenetrazione
 
-Lo smontagomme controlla durante il ciclo che nessun pezzo della macchina entri nella ruota: campiona le superfici dei pezzi e prova i punti contro le sezioni di cerchio e pneumatico (tenendo conto di dove il pneumatico è schiacciato dagli utensili). Nel browser segnala in console ogni compenetrazione con passo, pezzo e profondità. `npm run verifica` esegue il ciclo completo su tutte le misure di ruota, con e senza braccio di aiuto, prova la pulsantiera e controlla che l'equilibratrice misuri ancora lo squilibrio giusto.
+Smontagomme, EqMatch e SmontMatch controllano durante il ciclo che nessun pezzo della macchina entri nella ruota: campiona le superfici dei pezzi e prova i punti contro le sezioni di cerchio e pneumatico (tenendo conto di dove il pneumatico è schiacciato dagli utensili). Nel browser segnala in console ogni compenetrazione con passo, pezzo e profondità. `npm run verifica` esegue il ciclo completo su tutte le misure di ruota, con e senza braccio di aiuto, prova la pulsantiera e controlla che l'equilibratrice misuri ancora lo squilibrio giusto. Poi esegue il ciclo di SmontMatch senza matching e il matching completo EqMatch → SmontMatch → EqMatch, confrontando cerchio e pneumatico calcolati con quelli reali e il residuo misurato con la previsione.
 
 Tecnologie: TypeScript, [three.js](https://threejs.org/) e [Vite](https://vitejs.dev/). Tutta la geometria è procedurale, senza file 3D. Nessun servizio esterno, nessun tracciamento, solo font di sistema.
 
@@ -93,8 +107,12 @@ src/
   core/geo.ts             solidi di rivoluzione e altre geometrie
   core/wheel.ts           misure e geometria di cerchio e pneumatico
   core/interference.ts    controllo di compenetrazione tra macchina e ruota
+  core/match.ts           ruota condivisa da EqMatch e SmontMatch: squilibri, angolo, segni
+  core/marks.ts           segni del marcatore, arco e angolo di rotazione
   equilibratrice/         modello, fisica, ciclo di misura, display, schede delle parti
   smontagomme/            modello con helper, fisica pneumatica, ciclo di lavoro, schede delle parti
+  eqmatch/                copia dell'equilibratrice con la procedura di matching
+  smontmatch/             copia dello smontagomme con la rotazione del pneumatico e il fermo per matching
 public/                   manifest, service worker e icone della PWA
 tools/verifica.ts         verifica automatica (npm run verifica)
 ```

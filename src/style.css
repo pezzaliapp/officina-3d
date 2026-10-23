@@ -173,3 +173,12 @@ button.primario { background: var(--accento); border-color: var(--accento); colo
   .maniglia { display: none; }
   .schede { padding-top: 12px; }
 }
+
+/* matching (EqMatch e SmontMatch) */
+.manometro.due { grid-template-columns: 1fr 1fr; }
+.manometro[hidden], .riga[hidden] { display: none; }
+.matching { border: 1px solid var(--accento); border-radius: var(--r); padding: 10px 12px 2px; margin-bottom: 10px; }
+.matching b { display: block; margin-bottom: 4px; }
+.matching p { font-size: 13px; color: var(--tenue); margin: 0 0 10px; }
+.matching[hidden] { display: none; }
+.campo input { min-height: 44px; border-radius: 10px; border: 1px solid var(--linea); background: #1d232b; padding: 8px 12px; width: 100%; font: inherit; color: inherit; }

@@ -25,6 +25,8 @@
             <select id="sel-macchina">
               <option value="equilibratrice">Equilibratrice per ruote auto</option>
               <option value="smontagomme">Smontagomme</option>
+              <option value="eqmatch">EqMatch · equilibratrice con matching</option>
+              <option value="smontmatch">SmontMatch · smontagomme con matching</option>
             </select>
           </label>
         </div>
@@ -72,6 +74,7 @@
 
       <section data-pane="fisica" class="pane">
         <div id="fisica-live" class="tabella"></div>
+        <div id="fisica-extra"></div>
         <div id="fisica-testo" class="testo"></div>
         <div class="testo">
           <p class="nota">I valori marcati <span class="ind">indicativo</span> non provengono da una scheda tecnica: sono stime plausibili usate per la simulazione. Le dimensioni delle ruote derivano invece dalla sigla del pneumatico.</p>
@@ -81,7 +84,7 @@
 
     <dialog id="info" class="info">
       <h2>Officina 3D</h2>
-      <p>Macchine da officina da esplorare nel browser: un'equilibratrice e uno smontagomme per ruote auto. Scegli la macchina in alto, trascina per ruotare, pizzica o usa la rotella per lo zoom, tocca un pezzo per sapere cos'è.</p>
+      <p>Macchine da officina da esplorare nel browser: un'equilibratrice e uno smontagomme per ruote auto, anche nella versione con il matching di pneumatico e cerchio (EqMatch e SmontMatch). Scegli la macchina in alto, trascina per ruotare, pizzica o usa la rotella per lo zoom, tocca un pezzo per sapere cos'è.</p>
       <p>Tutta la geometria è generata dal codice, senza modelli 3D esterni. I cicli di lavoro usano la fisica reale: forza centrifuga e trave su due appoggi per la misura dello squilibrio, pressione per area e leve per lo stallonatore, coppia del riduttore e legge dei gas nel gonfiaggio.</p>
       <p>Funziona anche offline: dal menu del browser scegli <b>Aggiungi a schermata Home</b>.</p>
       <p class="nota">© 2026 Alessandro Pezzali · Licenza MIT</p>
