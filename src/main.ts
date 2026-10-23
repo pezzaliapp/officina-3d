@@ -7,6 +7,7 @@ import { createBalancer } from './equilibratrice'
 import { createTireChanger } from './smontagomme'
 import { createEqMatch } from './eqmatch'
 import { createSmontMatch } from './smontmatch'
+import { createLift } from './sollevatore'
 import { ui, setupTabs, esc, setText } from './ui'
 import { nav } from './core/nav'
 import { leggiMacchina, ErroreFormato } from './privata/format'
@@ -37,6 +38,7 @@ const FACTORIES: Record<string, (s: Section) => Machine> = {
   smontagomme: createTireChanger,
   eqmatch: createEqMatch,
   smontmatch: createSmontMatch,
+  sollevatore: createLift,
 }
 const built = new Map<string, Machine>()
 let m!: Machine
@@ -131,6 +133,10 @@ function open(id: string) {
   }
   m = next
   m.model.root.visible = true
+  // le macchine grandi (sollevatore) allontanano camera e nebbia; le altre usano i valori di sempre
+  controls.maxDistance = m.stage?.maxDistance ?? 7
+  ;(scene.fog as THREE.Fog).near = m.stage?.fog[0] ?? 4
+  ;(scene.fog as THREE.Fog).far = m.stage?.fog[1] ?? 9
   m.model.explode(explode)
   ui.macchina.value = id
   ui.tabLavoro.textContent = m.workTab

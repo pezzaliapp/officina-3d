@@ -51,6 +51,14 @@ button, select, input { font: inherit; color: inherit; }
 .passi button.fatto .n { background: var(--ok); color: #0b1a10; border-color: var(--ok); }
 .passi button.corrente { border-color: var(--accento); }
 .passi button small { display: block; color: var(--tenue); font-size: 12px; }
+/* sollevatore: pulsanti a uomo presente, STOP di emergenza, avvisi */
+.pulsantiera button { flex: 1; min-height: 48px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; padding: 0 8px; }
+.uomo-presente { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.uomo-presente.attivo { background: var(--ok); border-color: var(--ok); color: #0b1a10; }
+.emergenza { background: #8f1d16; border-color: #d23a2a; color: #fff; }
+.emergenza.attivo { background: #ffd21e; border-color: #ffd21e; color: #0b0d11; }
+.avvisi p { margin: 6px 0 0; padding: 6px 10px; border-radius: var(--r); background: rgba(255, 178, 30, 0.12); border: 1px solid rgba(255, 178, 30, 0.45); font-size: 13px; }
+.avvisi p.blocca { background: rgba(210, 58, 42, 0.15); border-color: rgba(210, 58, 42, 0.6); }
 .manometro { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
 .manometro div { background: #0a0d11; border: 1px solid var(--linea); border-radius: var(--r); padding: 6px 10px; }
 .manometro small { display: block; color: var(--tenue); font-size: 11px; }

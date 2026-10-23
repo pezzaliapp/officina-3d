@@ -29,6 +29,8 @@ export interface Machine {
   readonly order: string[]
   /** Inquadratura iniziale. */
   readonly view: View
+  /** Scena per macchine grandi: distanza massima della camera e nebbia (vicino, lontano), m; facoltativa. */
+  readonly stage?: { maxDistance: number; fog: [number, number] }
   /** Inquadratura dedicata a un pezzo, usata quando lo si sceglie dall'elenco; facoltativa. */
   partView?(id: string): View | null
   /** Inquadratura chiesta dal ciclo mentre un pezzo lavora (null = vista libera); facoltativa. */

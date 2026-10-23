@@ -1,11 +1,12 @@
 # Officina 3D
 
-Macchine da officina da esplorare nel browser, anche dal telefono. Si sceglie la macchina dal menu in alto (o con l'indirizzo `#equilibratrice`, `#smontagomme`, `#eqmatch`, `#smontmatch`):
+Macchine da officina da esplorare nel browser, anche dal telefono. Si sceglie la macchina dal menu in alto (o con l'indirizzo `#equilibratrice`, `#smontagomme`, `#eqmatch`, `#smontmatch`, `#sollevatore`):
 
 - **Equilibratrice per ruote auto**: misura davvero lo squilibrio della ruota.
 - **Smontagomme con braccio di aiuto**: stallona, smonta, rimonta e gonfia il pneumatico.
 - **EqMatch**: l'equilibratrice con il matching di pneumatico e cerchio.
 - **SmontMatch**: lo smontagomme che gira il pneumatico sul cerchio per il matching.
+- **Sollevatore a due colonne elettromeccanico**: solleva un'auto con le viti trapezie e la madrevite di sicurezza.
 
 Tutte si possono ruotare, sezionare e smontare pezzo per pezzo.
 
@@ -69,6 +70,23 @@ Quando il fermo per matching entra in azione la camera lo inquadra da vicino e a
 
 Il pannello Fisica di EqMatch mostra M1, M2, i vettori di cerchio e pneumatico (calcolati e reali) in un diagramma polare, l'angolo ottimale, il residuo previsto e quello misurato.
 
+## Sollevatore a due colonne
+
+Un sollevatore elettromeccanico da 3,5 t, senza marchio, con un'auto generica: berlina a motore anteriore, coupé a motore posteriore o SUV, più un carico a scelta nel vano.
+
+- **Lavorare**: l'auto entra tra le colonne nella posizione consigliata (il baricentro più vicino possibile alla linea delle colonne con tutti i punti di sollevamento raggiungibili; si può spostare), i bracci telescopici girano e si sfilano sotto i quattro punti di sollevamento e i tamponi si alzano fino a toccare il sottoscocca. SALITA e DISCESA sono **a uomo presente**: il sollevatore si muove solo finché il pulsante è tenuto premuto (mouse, dito o tastiera). STOP di emergenza a fungo, con riarmo. *Ciclo completo* fa tutto da solo.
+- **Sicurezze**: fine corsa superiore e inferiore, barra del tetto sotto la trave (con il SUV è lei a fermare la salita), blocchi anti-rotazione dei bracci che entrano appena il carrello sale, protezioni piedi. Con *Rompi la madrevite portante* la chiocciola della colonna più carica cede: il carrello cala di 8 mm, si appoggia sulla madrevite di sicurezza, il microinterruttore apre il circuito e il sollevatore resta fermo.
+- **Avvisi**: portata superata, braccio sovraccarico, baricentro fuori dai punti di sollevamento e punti non raggiungibili bloccano la salita; baricentro spostato e ripartizione sbilanciata vengono segnalati.
+- **Sezione**: le colonne si aprono sul piano dell'asse delle viti; si vedono la vite che gira con il suo filetto, la madrevite portante che sale, la madrevite di sicurezza che la segue a 8 mm e, nella testata, il pignone e l'ingranaggio del riduttore che girano con la cinghia e il motore.
+- **Flussi animati**: frecce dei carichi sui quattro tamponi, rosse se un braccio è oltre il suo massimo.
+
+### La fisica
+
+- Carico sui tamponi con l'equilibrio di forze e momenti (regola della leva), avanti–dietro e sinistra–destra, dal baricentro dell'auto e del carico nel vano.
+- Vite trapezia Tr 36 × 6: angolo d'elica `λ = arctan(p / π d₂)`, angolo d'attrito `φ' = arctan(μ / cos 15°)`, coppia in salita `C = F · d₂/2 · tan(λ + φ')`, rendimento `η = tan λ / tan(λ + φ')`. È autobloccante perché `λ < φ'` (rendimento sotto il 50%): in discesa serve coppia per trascinare la vite.
+- Motore asincrono con scorrimento proporzionale alla coppia, attraverso cinghia e ingranaggi: la colonna più carica va un poco più piano e il quadro ferma per un attimo quella più veloce oltre 3 mm di dislivello (i cavi incrociati nella trave sono il rinforzo meccanico).
+- Il controllo di compenetrazione prova i pezzi della macchina contro la sagoma dell'auto e le sue ruote a ogni passo: entrata, bracci, salita, discesa, uscita.
+
 ## Macchine private da file
 
 Con **＋ Carica macchina**, accanto al menu delle macchine, si apre un file dal dispositivo (anche dal telefono) nel formato `officina-3d-macchina`, descritto in [docs/formato-macchina.md](docs/formato-macchina.md). Per ora il formato descrive equilibratrici: pezzi fatti di forme semplici, tavole e posizioni del catalogo, ordine e direzioni di smontaggio, catalogo ricambi e il collegamento alla simulazione di EqMatch, così misura e matching funzionano come nella macchina pubblica.
@@ -84,7 +102,7 @@ Senza file caricato l'app è quella di sempre.
 
 ## Screenshot
 
-Ripresi in Chrome headless durante un giro completo di matching sulla ruota 175/65 R14 e con la macchina di prova caricata da file (`docs/screenshot/`).
+Ripresi in Chrome headless durante un giro completo di matching sulla ruota 175/65 R14, con la macchina di prova caricata da file e con il sollevatore (`docs/screenshot/`).
 
 | | |
 |---|---|
@@ -96,7 +114,10 @@ Ripresi in Chrome headless durante un giro completo di matching sulla ruota 175/
 | ![Macchina privata](docs/screenshot/11-privata-caricata.png) Macchina di prova caricata da file, con le etichette T·pos | ![Smontaggio](docs/screenshot/12-privata-smontaggio.png) Smontaggio secondo gli ordini del file |
 | ![Sezione](docs/screenshot/13-privata-sezione.png) Sezione della macchina caricata | ![Tavola](docs/screenshot/14-privata-tavola.png) Una tavola alla volta |
 | ![Ricambio](docs/screenshot/15-privata-ricambio.png) Ricambio scelto dall'elenco: scheda e pezzo nella sua tavola | ![Matching](docs/screenshot/16-privata-matching.png) Lo smontagomme rimanda la ruota alla macchina privata |
-| ![File sbagliato](docs/screenshot/17-privata-file-sbagliato.png) Un file non valido viene rifiutato con il motivo | |
+| ![File sbagliato](docs/screenshot/17-privata-file-sbagliato.png) Un file non valido viene rifiutato con il motivo | ![Sollevatore](docs/screenshot/18-sollevatore.png) Sollevatore: auto dentro, bracci sotto i punti di sollevamento |
+| ![Sollevatore, Fisica](docs/screenshot/19-sollevatore-fisica.png) Auto in alto a fine corsa: carichi, coppia, rendimento, autobloccaggio | ![Sollevatore, sezione](docs/screenshot/20-sollevatore-sezione.png) In sezione: vite, madrevite portante e madrevite di sicurezza |
+| ![Sollevatore, ingranaggi](docs/screenshot/21-sollevatore-ingranaggi.png) Testata aperta: pignone, ingranaggio, cinghia e motore | ![Sollevatore, rottura](docs/screenshot/22-sollevatore-rottura.png) Madrevite portante rotta: il carrello appoggia sulla madrevite di sicurezza |
+| ![Sollevatore, smontaggio](docs/screenshot/23-sollevatore-smontaggio.png) Smontaggio del sollevatore | ![Sollevatore, avvisi](docs/screenshot/24-sollevatore-avvisi.png) SUV con 1600 kg nel vano: portata superata e bracci sovraccarichi, salita bloccata |
 
 ## Valori indicativi
 
@@ -117,7 +138,7 @@ npm run verifica # verifica automatica delle macchine, poi la misura nel browser
 
 ### Controllo di compenetrazione
 
-Tutte e quattro le macchine controllano durante il ciclo che nessun pezzo entri nella ruota (nelle equilibratrici anche il calibro durante il rilievo): campiona le superfici dei pezzi e prova i punti contro le sezioni di cerchio e pneumatico (tenendo conto di dove il pneumatico è schiacciato dagli utensili). Nel browser segnala in console ogni compenetrazione con passo, pezzo e profondità. `npm run verifica` esegue il ciclo completo su tutte le misure di ruota, con e senza braccio di aiuto, prova la pulsantiera e controlla che l'equilibratrice misuri ancora lo squilibrio giusto. Su equilibratrice ed EqMatch esegue rilievo, misura, pesi e carter con il controllo attivo su tutte le ruote; una prova col calibro spostato di proposito dentro la ruota conferma che il controllo lo vede. Poi esegue il ciclo di SmontMatch senza matching e il matching completo EqMatch → SmontMatch → EqMatch, confrontando cerchio e pneumatico calcolati con quelli reali e il residuo misurato con la previsione. Infine `tools/verifica-browser.mjs` apre l'app in Chromium e in WebKit (il motore di Safari) con [Playwright](https://playwright.dev/), carica la macchina di esempio con **＋ Carica macchina**, preme **Avvia misura** con il carter alzato tenendo premuto il tasto come una persona e aspetta il risultato, controlla che le righe dei ricambi contengano il loro testo, prova le etichette T·pos col mouse e col tocco su un telefono (passaggio, scelta, Esc, scelta dall'elenco ricambi, sezione, nessuna sovrapposizione, aree di tocco di 32 px) e tratta come errore ogni messaggio d'errore in console e ogni richiesta che esce dal server locale. I browser si installano una volta con `npx playwright install chromium webkit`.
+Le quattro macchine per ruote controllano durante il ciclo che nessun pezzo entri nella ruota (nelle equilibratrici anche il calibro durante il rilievo): il controllo campiona le superfici dei pezzi e prova i punti contro le sezioni di cerchio e pneumatico (tenendo conto di dove il pneumatico è schiacciato dagli utensili). Il sollevatore fa lo stesso contro l'auto, descritta dalla sua sagoma piena e dalle quattro ruote. Nel browser segnala in console ogni compenetrazione con passo, pezzo e profondità. `npm run verifica` esegue il ciclo completo su tutte le misure di ruota, con e senza braccio di aiuto, prova la pulsantiera e controlla che l'equilibratrice misuri ancora lo squilibrio giusto. Su equilibratrice ed EqMatch esegue rilievo, misura, pesi e carter con il controllo attivo su tutte le ruote; una prova col calibro spostato di proposito dentro la ruota conferma che il controllo lo vede. Poi esegue il ciclo di SmontMatch senza matching e il matching completo EqMatch → SmontMatch → EqMatch, confrontando cerchio e pneumatico calcolati con quelli reali e il residuo misurato con la previsione. Sul sollevatore esegue il ciclo completo con le tre auto (fine corsa, barra del tetto, sincronismo, nessuna compenetrazione con l'auto), una prova con i tamponi alzati di proposito dentro l'auto per confermare che il controllo la vede, i comandi a uomo presente, lo STOP, la rottura della madrevite portante e gli avvisi di portata, bracci e baricentro. Infine `tools/verifica-browser.mjs` apre l'app in Chromium e in WebKit (il motore di Safari) con [Playwright](https://playwright.dev/), carica la macchina di esempio con **＋ Carica macchina**, preme **Avvia misura** con il carter alzato tenendo premuto il tasto come una persona e aspetta il risultato, controlla che le righe dei ricambi contengano il loro testo, prova le etichette T·pos col mouse e col tocco su un telefono (passaggio, scelta, Esc, scelta dall'elenco ricambi, sezione, nessuna sovrapposizione, aree di tocco di 32 px), apre le cinque macchine pubbliche dal menu, sul sollevatore tiene premuti SALITA e DISCESA col mouse e prova STOP e riarmo, e tratta come errore ogni messaggio d'errore in console e ogni richiesta che esce dal server locale. I browser si installano una volta con `npx playwright install chromium webkit`.
 
 Tecnologie: TypeScript, [three.js](https://threejs.org/) e [Vite](https://vitejs.dev/). Tutta la geometria è procedurale, senza file 3D. Nessun servizio esterno, nessun tracciamento, solo font di sistema.
 
@@ -137,13 +158,14 @@ src/
   core/section.ts         sezione con tratteggio delle superfici tagliate
   core/geo.ts             solidi di rivoluzione e altre geometrie
   core/wheel.ts           misure e geometria di cerchio e pneumatico
-  core/interference.ts    controllo di compenetrazione tra macchina e ruota
+  core/interference.ts    controllo di compenetrazione tra macchina e ruota (o auto)
   core/match.ts           ruota condivisa da EqMatch e SmontMatch: squilibri, angolo, segni
   core/marks.ts           segni del marcatore, arco e angolo di rotazione
   equilibratrice/         modello, fisica, ciclo di misura, display, schede delle parti
   smontagomme/            modello con helper, fisica pneumatica, ciclo di lavoro, schede delle parti
   eqmatch/                copia dell'equilibratrice con la procedura di matching
   smontmatch/             copia dello smontagomme con la rotazione del pneumatico e il fermo per matching
+  sollevatore/            sollevatore a due colonne: modello con l'auto, fisica di vite e carichi, comandi, schede
   privata/                lettore delle macchine private: formato, archivio sul dispositivo, modello
 public/                   manifest, service worker e icone della PWA
 tools/verifica.ts         verifica automatica (npm run verifica)

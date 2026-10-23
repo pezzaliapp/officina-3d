@@ -10,7 +10,10 @@
  *   aprire la scheda, il click lo sceglie (etichetta in evidenza, linea spessa col pallino,
  *   altre attenuate, scheda nel pannello Parti), Esc torna alla vista normale;
  * - etichette su un telefono: aree di tocco di almeno 32 px, il primo tocco illumina,
- *   il secondo sceglie.
+ *   il secondo sceglie;
+ * - le cinque macchine pubbliche si aprono dal menu senza errori;
+ * - sollevatore: entra l'auto, bracci, SALITA e DISCESA tenuti premuti col mouse (si muove
+ *   solo finché il pulsante è premuto), STOP che blocca anche con SALITA premuto, riarmo.
  * Ogni messaggio d'errore in console e ogni richiesta che esce dal server locale è un errore.
  *
  * I browser si installano una volta con: npx playwright install chromium webkit
@@ -152,6 +155,56 @@ for (const [nome, tipo] of [['Chromium', chromium], ['WebKit', webkit]]) {
     await page.waitForTimeout(1200)
     e = await etichette(page)
     ok(e.sel === 1 && !!e.scheda, `secondo tocco: pezzo scelto, scheda «${e.scheda}»`)
+    await page.context().close()
+
+    // ---------- macchine pubbliche, sollevatore ----------
+    page = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage()
+    page.on('pageerror', (e) => errori.push(e.message))
+    page.on('console', (m) => m.type() === 'error' && errori.push(m.text()))
+    await page.route('**/*', (r) => (r.request().url().startsWith(origin) ? r.continue() : (fuori.push(r.request().url()), r.abort())))
+    await page.goto(base)
+    await page.waitForSelector('#sel-macchina')
+    const aperte = []
+    for (const id of ['equilibratrice', 'smontagomme', 'eqmatch', 'smontmatch', 'sollevatore']) {
+      await page.selectOption('#sel-macchina', id)
+      await page.waitForTimeout(1500)
+      const st = await page.evaluate(() => document.getElementById('hud-stato').textContent)
+      if (st) aperte.push(id)
+    }
+    ok(aperte.length === 5, `macchine pubbliche aperte dal menu: ${aperte.join(', ')}`)
+    const stato = () => page.evaluate(() => document.getElementById('hud-stato').textContent)
+    const corsa = () => page.evaluate(() => parseFloat(document.getElementById('hud-rpm').textContent.replace(/\./g, '').replace(',', '.')))
+    const tieni = async (id, ms) => {
+      const bb = await page.locator(`[data-id="${id}"]`).boundingBox()
+      await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2)
+      await page.mouse.down()
+      await page.waitForTimeout(ms)
+      const durante = await stato()
+      await page.mouse.up()
+      return durante
+    }
+    await page.click('[data-id="entra"]')
+    await page.waitForFunction(() => document.getElementById('hud-stato').textContent === 'AUTO DENTRO', null, { timeout: 60000 })
+    await page.click('[data-id="bracci"]')
+    await page.waitForFunction(() => document.getElementById('hud-stato').textContent === 'PRONTO', null, { timeout: 60000 })
+    ok(true, 'sollevatore: auto dentro, bracci sotto i punti di sollevamento')
+    const su = await tieni('su', 2500)
+    await page.waitForTimeout(300)
+    const h1 = await corsa()
+    await page.waitForTimeout(1000)
+    const h2 = await corsa()
+    ok(su === 'SALITA' && h1 > 5 && h1 === h2, `SALITA tenuto premuto 2,5 s: sale a ${h1} mm, rilasciato si ferma`)
+    const giu = await tieni('giu', 1000)
+    await page.waitForTimeout(300)
+    const h3 = await corsa()
+    ok(giu === 'DISCESA' && h3 < h2, `DISCESA tenuto premuto: scende a ${h3} mm`)
+    await page.click('[data-id="stop"]')
+    const bloccato = await tieni('su', 1000)
+    const h4 = await corsa()
+    ok(bloccato === 'EMERGENZA' && h4 === h3, 'STOP di emergenza: con SALITA premuto non si muove')
+    await page.click('[data-id="stop"]')
+    const ancora = await tieni('su', 800)
+    ok(ancora === 'SALITA', 'riarmo: SALITA funziona di nuovo')
     await page.context().close()
   } catch (e) {
     ok(false, `prova interrotta: ${e.message.split('\n')[0]}`)

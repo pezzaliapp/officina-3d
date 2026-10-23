@@ -15,6 +15,17 @@ export interface Solid {
   slack?: () => number
 }
 
+/**
+ * Forma qualsiasi (per esempio un'auto) data come funzione di profondità nel sistema di frame:
+ * positiva dentro la forma, negativa fuori. bounds è il suo ingombro nello stesso sistema.
+ */
+export interface Shape {
+  name: string
+  frame: THREE.Object3D
+  bounds: THREE.Box3
+  depth(x: number, y: number, z: number): number
+}
+
 /** Compenetrazione trovata: parte della macchina, pezzo della ruota, profondità (m) e punto (mondo). */
 export interface Hit { part: string; solid: string; depth: number; at: THREE.Vector3; r: number; x: number }
 
@@ -107,6 +118,67 @@ export class InterferenceCheck {
       if (prev && prev.depth >= best) continue
       this.p.set(pts[bi], pts[bi + 1], pts[bi + 2]).applyMatrix4(mesh.matrixWorld)
       worst.set(key, { part, solid: s.name, depth: best, at: this.p.clone(), r: br, x: bx })
+    }
+  }
+
+  /**
+   * Come run, ma contro forme qualsiasi date dalla loro funzione di profondità (Shape).
+   * Nei risultati r e x sono la quota y e la z del punto nel sistema della forma.
+   */
+  runShapes(shapes: Shape[], allow: (part: string) => number): Hit[] {
+    this.root.updateMatrixWorld(true)
+    const prepared = shapes.map((s) => ({
+      s,
+      inverse: s.frame.matrixWorld.clone().invert(),
+      sphere: s.bounds.getBoundingSphere(new THREE.Sphere()).applyMatrix4(s.frame.matrixWorld),
+    }))
+    const worst = new Map<string, Hit>()
+    const visit = (o: THREE.Object3D, part: string) => {
+      if (this.skip(o)) return
+      if (o.userData.part) part = o.userData.part
+      const mesh = o as THREE.Mesh
+      if (mesh.isMesh) this.meshShapes(mesh, part, prepared, allow(part), worst)
+      for (const c of o.children) visit(c, part)
+    }
+    visit(this.root, '')
+    return [...worst.values()].sort((a, b) => b.depth - a.depth)
+  }
+
+  private meshShapes(mesh: THREE.Mesh, part: string, shapes: { s: Shape; inverse: THREE.Matrix4; sphere: THREE.Sphere }[], allowed: number, worst: Map<string, Hit>) {
+    const geo = mesh.geometry
+    if (!geo.boundingSphere) geo.computeBoundingSphere()
+    this.sphere.copy(geo.boundingSphere!).applyMatrix4(mesh.matrixWorld)
+    for (const { s, inverse, sphere } of shapes) {
+      if (this.sphere.center.distanceTo(sphere.center) > this.sphere.radius + sphere.radius) continue
+      const { pts, chunks } = this.pointsOf(geo)
+      this.m.copy(inverse).multiply(mesh.matrixWorld)
+      const e = this.m.elements
+      const sc = Math.max(1, mesh.matrixWorld.getMaxScaleOnAxis())
+      const b = s.bounds
+      let best = allowed, bi = -1, by = 0, bz = 0
+      for (let c = 0; c < chunks.length; c += 6) {
+        // gruppo di punti vicini: si scarta tutto insieme se la sua sfera è fuori dall'ingombro
+        const cx = chunks[c + 2], cy = chunks[c + 3], cz = chunks[c + 4], cr = chunks[c + 5] * sc
+        const gx = e[0] * cx + e[4] * cy + e[8] * cz + e[12]
+        const gy = e[1] * cx + e[5] * cy + e[9] * cz + e[13]
+        const gz = e[2] * cx + e[6] * cy + e[10] * cz + e[14]
+        if (gx < b.min.x - cr || gx > b.max.x + cr || gy < b.min.y - cr || gy > b.max.y + cr || gz < b.min.z - cr || gz > b.max.z + cr) continue
+        for (let i = chunks[c]; i < chunks[c + 1]; i += 3) {
+          const x = pts[i], y = pts[i + 1], z = pts[i + 2]
+          const lx = e[0] * x + e[4] * y + e[8] * z + e[12]
+          const ly = e[1] * x + e[5] * y + e[9] * z + e[13]
+          const lz = e[2] * x + e[6] * y + e[10] * z + e[14]
+          if (lx < b.min.x || lx > b.max.x || ly < b.min.y || ly > b.max.y || lz < b.min.z || lz > b.max.z) continue
+          const d = s.depth(lx, ly, lz)
+          if (d > best) { best = d; bi = i; by = ly; bz = lz }
+        }
+      }
+      if (bi < 0) continue
+      const key = part + '|' + s.name
+      const prev = worst.get(key)
+      if (prev && prev.depth >= best) continue
+      this.p.set(pts[bi], pts[bi + 1], pts[bi + 2]).applyMatrix4(mesh.matrixWorld)
+      worst.set(key, { part, solid: s.name, depth: best, at: this.p.clone(), r: by, x: bz })
     }
   }
 

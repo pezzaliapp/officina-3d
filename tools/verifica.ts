@@ -13,6 +13,9 @@
  * confrontando cerchio e pneumatico calcolati con quelli reali e il residuo con la previsione.
  * Macchina privata: legge la macchina di esempio (docs/esempi), rifiuta i file sbagliati,
  * controlla smontaggio, tavole ed etichette, poi misura e matching senza nessuna richiesta di rete.
+ * Sollevatore: ciclo completo con le tre auto e il controllo di compenetrazione con l'auto a ogni
+ * passo, fine corsa e barra del tetto, carichi, sincronismo, comandi a uomo presente, STOP,
+ * rottura della madrevite portante, avvisi di portata, bracci e baricentro, autobloccaggio.
  *
  * Uso: npm run verifica
  */
@@ -28,6 +31,8 @@ import { createSmontMatch } from '../src/smontmatch'
 import { match } from '../src/core/match'
 import { leggiMacchina, ErroreFormato } from '../src/privata/format'
 import { createPrivateMachine } from '../src/privata'
+import { createLift } from '../src/sollevatore'
+import { vite, G, AUTO, SPEC } from '../src/sollevatore/physics'
 import esempio from '../docs/esempi/equilibratrice-di-prova.json?raw'
 
 const DT = 1 / 60
@@ -337,6 +342,86 @@ console.log('Macchina privata: lettura del file, smontaggio, tavole, misura e ma
   checks.push([`nessuna richiesta di rete${net.length ? ': ' + net.join(', ') : ''}`, net.length === 0])
   Object.assign(g, saved)
   for (const [k, ok] of checks) if (ok) console.log('  ✓ ' + k); else fail(k)
+}
+
+// ---------- sollevatore a due colonne ----------
+
+console.log('Sollevatore: ciclo completo con le tre auto, controllo di compenetrazione con l\'auto')
+for (const a of AUTO) {
+  const m = createLift(new Section())
+  m.test.checkEveryFrame()
+  m.test.setCar(a.id)
+  let t = 0, ms = 0, frames = 0, hMax = 0, top = '', sommaOk = true
+  m.test.ciclo()
+  while (m.busy && t < 400) {
+    const t0 = performance.now()
+    m.update(DT, t * 1000, true)
+    ms += performance.now() - t0
+    frames++
+    t += DT
+    hMax = Math.max(hMax, ...m.test.h)
+    if (!top && hMax > 0.5 && m.test.moto === 'fermo') top = m.test.messaggio
+    if (m.test.fase === 'pronto') sommaOk &&= Math.abs(m.test.bracciN.reduce((x, y) => x + y, 0) - a.massa * G) < 1
+  }
+  const line = `${a.label}: ciclo in ${t.toFixed(0)} s, corsa ${(hMax * 1000).toFixed(0)} mm (${top}), dislivello massimo ${(m.test.dislivelloMax * 1000).toFixed(1)} mm · ${(ms / frames).toFixed(2)} ms/frame`
+  const fineOk = a.id === 'suv' ? /Barra di sicurezza/.test(top) && hMax < SPEC.corsa : /Fine corsa superiore/.test(top) && hMax >= SPEC.corsa - 1e-6
+  if (m.test.fase !== 'vuoto' || !fineOk || m.test.dislivelloMax > SPEC.dislivelloMax + 0.001) fail(line + ` · fase finale ${m.test.fase}`)
+  else console.log('  ✓ ' + line)
+  if (!sommaOk) fail(`${a.label}: la somma dei carichi sui bracci non è il peso dell'auto`)
+  if (m.test.clashes.length) {
+    fail(`${a.label}: ${m.test.clashes.length} compenetrazioni con l'auto`)
+    for (const c of m.test.clashes) console.log(`      ${c.step.padEnd(9)} ${c.part.padEnd(14)} ${(c.depth * 1000).toFixed(1).padStart(6)} mm  (${c.at.toArray().map((v) => v.toFixed(3)).join(', ')})`)
+  } else console.log(`  ✓ ${a.label}: nessuna compenetrazione con l'auto (entrata, bracci, salita, discesa, uscita)`)
+}
+
+console.log('Sollevatore: comandi, sicurezze e avvisi')
+{
+  const m = createLift(new Section())
+  m.test.checkEveryFrame()
+  let t = 0
+  const run = (s: number) => { for (let k = 0; k < s / DT; k++) { m.update(DT, t * 1000, true); t += DT } }
+  const idle = () => { for (let k = 0; k < 20000 && m.busy; k++) { m.update(DT, t * 1000, true); t += DT } }
+  const hMean = () => (m.test.h[0] + m.test.h[1]) / 2
+  const checks: [string, boolean][] = []
+  const v = vite()
+  checks.push([`vite autobloccante: λ ${((v.lambda * 180) / Math.PI).toFixed(2)}° < φ' ${((v.phi * 180) / Math.PI).toFixed(2)}°, rendimento ${(v.rendimento * 100).toFixed(0)} %`, v.autobloccante && v.rendimento < 0.5])
+  m.test.setCar('anteriore'); m.test.entra(); idle(); m.test.bracci(); idle()
+  checks.push(['auto dentro e bracci sotto i punti di sollevamento', m.test.fase === 'pronto'])
+  const sonda = m.test.probePads(0.02)
+  checks.push([`prova del controllo: tamponi alzati di 20 mm dentro l'auto, visti (${sonda.map((h) => (h.depth * 1000).toFixed(0) + ' mm').join(', ')})`, sonda.some((h) => h.part === 'tampone' && h.depth > 0.015)])
+  m.test.press('su', true); run(3)
+  const h1 = hMean()
+  checks.push([`SALITA tenuta 3 s: ${(h1 * 1000).toFixed(0)} mm`, h1 > 0.07 && m.test.moto === 'salita'])
+  m.test.press('su', false); run(1)
+  checks.push(['SALITA rilasciata: il carrello si ferma subito (uomo presente)', m.test.moto === 'fermo' && Math.abs(hMean() - h1) < 0.001])
+  checks.push([`auto sollevata: ${(m.test.carY * 1000).toFixed(0)} mm, carichi per colonna ${m.test.colonneN.map((f) => (f / G).toFixed(0)).join(' / ')} kg`, m.test.carY > 0.07])
+  m.test.press('su', true); run(1); m.test.stop(); run(1)
+  const h2 = hMean()
+  checks.push(['STOP di emergenza: motori fermi anche con SALITA premuto', m.test.moto === 'fermo'])
+  run(1)
+  checks.push(['con lo STOP premuto non si sale', Math.abs(hMean() - h2) < 1e-6])
+  m.test.press('su', false); m.test.stop(); m.test.press('su', true); run(25); m.test.press('su', false); run(0.2)
+  checks.push([`riarmo: si sale di nuovo (${(hMean() * 1000).toFixed(0)} mm)`, hMean() > 0.7])
+  const hr = m.test.h.slice()
+  checks.push(['rottura della madrevite portante', m.test.rompi()])
+  run(1)
+  const side = m.test.drop[0] > 0 ? 0 : 1
+  checks.push([`la madrevite di sicurezza prende il carrello dopo ${(m.test.drop[side] * 1000).toFixed(1)} mm`, Math.abs(m.test.drop[side] - SPEC.giocoSicurezza) < 1e-6 && m.test.drop[1 - side] === 0])
+  m.test.press('su', true); run(1); m.test.press('su', false); m.test.press('giu', true); run(1); m.test.press('giu', false)
+  checks.push(['dopo la rottura carrelli fermi e comandi bloccati', m.test.h[0] === hr[0] && m.test.h[1] === hr[1] && /sicurezza/.test(m.test.messaggio)])
+  m.test.ripristina(); m.test.press('giu', true); run(60); m.test.press('giu', false); run(0.2)
+  checks.push(['madrevite sostituita: discesa fino al fine corsa inferiore, auto a terra', m.test.h[0] === 0 && m.test.h[1] === 0 && m.test.carY === 0])
+  m.test.setCarico(1200)
+  const av1 = m.test.avvisi
+  m.test.press('su', true); run(1); m.test.press('su', false)
+  checks.push([`braccio sovraccarico (1200 kg nel bagagliaio): avviso e salita bloccata`, av1.some((x) => x.includes('sovraccarico')) && hMean() === 0])
+  checks.push(['baricentro troppo spostato: avviso', av1.some((x) => x.startsWith('Baricentro spostato'))])
+  m.test.setCarico(0); m.test.riponi(); idle(); m.test.esci(); idle()
+  m.test.setCar('suv'); m.test.setCarico(1600); m.test.entra(); idle(); m.test.bracci(); idle()
+  m.test.press('su', true); run(1); m.test.press('su', false)
+  checks.push([`portata superata (SUV + 1600 kg): avviso e salita bloccata`, m.test.avvisi.some((x) => x.startsWith('Portata superata')) && hMean() === 0])
+  for (const [k, ok] of checks) if (ok) console.log('  ✓ ' + k); else fail(k)
+  for (const c of m.test.clashes) fail(`compenetrazione: ${c.part} nell'auto di ${(c.depth * 1000).toFixed(1)} mm (${c.step})`)
 }
 
 console.warn = warn
