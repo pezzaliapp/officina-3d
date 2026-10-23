@@ -30,6 +30,8 @@ export class BalancerModel extends MachineModel {
   private rimG!: THREE.Group
   private weightG!: THREE.Group
   private cablesG = new THREE.Group()
+  private calStem!: THREE.Mesh
+  private calTip!: THREE.Mesh
 
   constructor(section: Section, screenTex: THREE.Texture) {
     super(section)
@@ -301,8 +303,10 @@ export class BalancerModel extends MachineModel {
     this.calSlide.userData.part = 'calibro'
     this.calSlide.userData.front = true
     this.mesh(this.calSlide, cylX(0.008, -0.36, 0.03).translate(0, 0.62, 0), LOOK.steel)
-    this.mesh(this.calSlide, new THREE.CylinderGeometry(0.006, 0.004, 0.035, 12).translate(0.03, 0.6, 0), LOOK.steel)
-    this.mesh(this.calSlide, new THREE.SphereGeometry(0.009, 14, 10).translate(0.03, 0.583, 0), LOOK.accent)
+    // puntale: stelo che sale dall'asta fino alla sfera, regolato sulla misura del cerchio (buildWheel)
+    this.calStem = this.mesh(this.calSlide, new THREE.CylinderGeometry(0.005, 0.004, 1, 12).translate(0.03, -0.5, 0), LOOK.steel)
+    this.calStem.position.y = 0.62
+    this.calTip = this.mesh(this.calSlide, new THREE.SphereGeometry(0.009, 14, 10).translate(0.03, 0, 0), LOOK.accent)
     this.mesh(g, box(0.05, 0.03, 0.03, -0.36, 0.62, 0), LOOK.chip)
     this.mesh(g, tubeX(0.0085, 0.013, -0.3, -0.02).translate(0, 0.62, 0), LOOK.dark)
   }
@@ -345,6 +349,10 @@ export class BalancerModel extends MachineModel {
     this.wheel.position.x = LAYOUT.flangeFace - spec.et
     this.clear(this.rimG)
     this.clear(this.tireG)
+    // la sfera del calibro tocca il cerchio da dentro, appena sotto la sede del tallone interno
+    const y = AXIS_Y - (wheelGeometry(spec).rimR - 0.0145)
+    this.calTip.position.y = y
+    this.calStem.scale.y = Math.max(0.62 - y, 0.005)
 
     const geo = wheelMeshes(spec)
     for (const r of geo.rim) this.mesh(this.rimG, r.geo, LOOK[r.look])
