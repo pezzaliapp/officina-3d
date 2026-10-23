@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { Section } from '../core/section'
 import { MachineModel, LOOK, Look } from '../core/model'
 import { wheelMeshes, rimSection, tireShell } from '../core/wheel'
-import { MarkSet, MarkState, Label } from '../core/marks'
+import { MarkSet, MarkState } from '../core/marks'
 import type { Solid } from '../core/interference'
 import type { View } from '../core/machine'
 import { revolveX, RX } from '../core/geo'
@@ -71,6 +71,11 @@ export class PrivateModel extends MachineModel implements BalancerLike {
     this.levels = [...new Set(this.orderOf.values())].sort((a, b) => a - b)
     this.root.updateMatrixWorld(true)
     this.bounds.setFromObject(this.root)
+    for (const h of this.labels) {
+      const box = new THREE.Box3()
+      for (const pc of this.parts.get(h.userData.part)!.pieces) pc.obj.traverse((o) => { if ((o as THREE.Mesh).isMesh) box.expandByObject(o) })
+      h.userData.size = box.isEmpty() ? 0 : box.getSize(new THREE.Vector3()).length()
+    }
   }
 
   // ---------- pezzi del file ----------
@@ -128,38 +133,17 @@ export class PrivateModel extends MachineModel implements BalancerLike {
     return this.screenMat
   }
 
-  /** Etichetta "T5·12" con la linea di richiamo dal centro del pezzo; si sposta con il pezzo nell'esploso. */
+  /**
+   * Ancora dell'etichetta "T5·12": centro del pezzo, si sposta con il pezzo nell'esploso.
+   * Le etichette vere sono pulsanti sopra la scena (etichette.ts), impaginati sullo schermo.
+   */
   private label(g: THREE.Group, mesh: THREE.Mesh, tag: string, id: string) {
     mesh.geometry.computeBoundingBox()
     const c = mesh.geometry.boundingBox!.getCenter(new THREE.Vector3()).applyEuler(mesh.rotation).add(mesh.position)
     const holder = new THREE.Group()
-    holder.userData = { noPick: true, part: id, anchor: c }
-    const l = new Label(0.017, true)
-    l.set(tag)
-    holder.add(l.sprite)
-    const line = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffd21e, depthTest: false, transparent: true, opacity: 0.85, toneMapped: false }))
-    line.renderOrder = 9
-    line.userData.noPick = true
-    holder.add(line)
+    holder.userData = { noPick: true, part: id, anchor: c, tag }
     g.add(holder)
     this.labels.push(holder)
-  }
-
-  /** Mette le etichette fuori dalla macchina, ognuna nella direzione del suo pezzo rispetto al centro. */
-  private placeLabels() {
-    const center = this.bounds.getCenter(new THREE.Vector3())
-    const w = new THREE.Vector3()
-    for (const h of this.labels) {
-      const a = h.userData.anchor as THREE.Vector3
-      h.parent!.localToWorld(w.copy(a))
-      const out = w.clone().sub(center).setY(0)
-      if (out.lengthSq() < 1e-6) out.set(0, 0, 1)
-      out.normalize().multiplyScalar(0.09).add(new THREE.Vector3(0, 0.05, 0))
-      const at = h.parent!.worldToLocal(w.clone().add(out))
-      const sprite = h.children[0] as THREE.Sprite
-      sprite.position.copy(at)
-      ;(h.children[1] as THREE.Line).geometry.setFromPoints([a, at])
-    }
   }
 
   // ---------- tavole ed etichette ----------
@@ -174,9 +158,62 @@ export class PrivateModel extends MachineModel implements BalancerLike {
 
   setLabels(on: boolean) {
     this.labelsOn = on
-    for (const l of this.labels) l.visible = on
   }
   get labelsShown() { return this.labelsOn }
+
+  /** Etichette T·pos: parte, testo, punto del pezzo (mondo) e grandezza della parte (m, per scegliere le più importanti). */
+  etichette(): { part: string; tag: string; at: THREE.Vector3; size: number }[] {
+    return this.labels.map((h) => ({ part: h.userData.part, tag: h.userData.tag, at: h.localToWorld((h.userData.anchor as THREE.Vector3).clone()), size: h.userData.size ?? 0 }))
+  }
+
+  /** Il punto (mondo) dell'etichetta di una parte resta dopo il piano di sezione? */
+  keepsAnchor(id: string, at: THREE.Vector3) {
+    let plane: THREE.Plane | undefined
+    this.parts.get(id)?.pieces[0]?.obj.traverse((o) => {
+      const m = (o as THREE.Mesh).material
+      plane ??= (Array.isArray(m) ? m[0] : m)?.clippingPlanes?.[0]
+    })
+    return this.section.keeps(at, plane)
+  }
+
+  // ---------- evidenziazione ----------
+
+  /** Parte scelta: tutte le altre diventano grigie e semitrasparenti. */
+  private sel: string | null = null
+  /** Parte in anteprima (passaggio sull'etichetta): si illumina e basta. */
+  private prev: string | null = null
+  get selected() { return this.sel }
+  get previewed() { return this.prev }
+
+  override highlight(id: string | null) {
+    this.sel = id
+    this.look()
+  }
+
+  preview(id: string | null) {
+    if (id === this.prev) return
+    this.prev = id
+    this.look()
+  }
+
+  private look() {
+    const grey = new THREE.Color(0x8a9099)
+    const keep = new Set<THREE.Material>(this.sel ? this.parts.get(this.sel)?.mats : [])
+    for (const p of this.parts.values())
+      for (const m of p.mats) {
+        const o = (m.userData.orig ??= { color: m.color.clone(), opacity: m.opacity, transparent: m.transparent, depthWrite: m.depthWrite })
+        const ghost = !!this.sel && !keep.has(m)
+        if (m.transparent !== (ghost || o.transparent)) m.needsUpdate = true
+        m.transparent = ghost || o.transparent
+        m.opacity = ghost ? 0.14 : o.opacity
+        m.depthWrite = ghost ? false : o.depthWrite
+        if (this.glowing.has(m)) continue
+        m.color.copy(ghost ? grey : o.color)
+        const on = p.id === this.sel ? 0xff8a1e : p.id === this.prev ? 0xffd21e : 0
+        m.emissive.setHex(on)
+        m.emissiveIntensity = on ? 0.55 : 0
+      }
+  }
 
   /** Inquadratura di una parte: il suo ingombro, com'è adesso. */
   viewOf(id: string): View | null {
@@ -214,7 +251,6 @@ export class PrivateModel extends MachineModel implements BalancerLike {
         const u = THREE.MathUtils.clamp(t * n - k, 0, 1)
         pc.obj.position.copy(pc.off).multiplyScalar(u * u * (3 - 2 * u))
       }
-    this.placeLabels()
   }
 
   // ---------- ruota (come in EqMatch) ----------
@@ -276,7 +312,6 @@ export class PrivateModel extends MachineModel implements BalancerLike {
     this.setWeights([], spec)
     this.root.updateMatrixWorld(true)
     this.bounds.setFromObject(this.root)
-    this.placeLabels()
   }
 
   setWeights(list: Weight[], spec: WheelSpec) {

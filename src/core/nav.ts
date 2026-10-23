@@ -11,4 +11,6 @@ export const nav = {
   select(_id: string | null) {},
   /** Porta la camera su un'inquadratura. */
   frame(_v: View) {},
+  /** Chiede di ridisegnare la scena (per esempio dopo aver acceso o spento le etichette). */
+  redraw() {},
 }

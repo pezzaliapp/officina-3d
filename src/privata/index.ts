@@ -123,7 +123,7 @@ export function createPrivateMachine(section: Section, file: MacchinaFile, key: 
 
       const lab = el['p-etichette'] as HTMLInputElement
       lab.checked = pm.labelsShown
-      lab.addEventListener('change', () => pm.setLabels(lab.checked))
+      lab.addEventListener('change', () => { pm.setLabels(lab.checked); nav.redraw() })
 
       const cerca = el['p-cerca'] as HTMLInputElement
       const list = el['p-ricambi']

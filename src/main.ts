@@ -12,10 +12,24 @@ import { nav } from './core/nav'
 import { leggiMacchina, ErroreFormato } from './privata/format'
 import { createPrivateMachine } from './privata'
 import * as archivio from './privata/store'
+import { Etichette } from './privata/etichette'
+import type { PrivateModel } from './privata/model'
 
 const host = document.getElementById('scena')!
 const { renderer, scene, camera, controls } = createStage(host)
 const section = new Section()
+
+/** Etichette tavola·posizione delle macchine caricate da file: pulsanti sopra la scena. */
+const etichette = new Etichette(
+  host,
+  camera,
+  (id) => nav.select(id),
+  () => [ui.pannello, document.querySelector<HTMLElement>('.marchio'), ui.btnInfo, document.getElementById('hud'), ui.etichetta]
+    .filter((e): e is HTMLElement => !!e && !e.hidden)
+    .map((e) => e.getBoundingClientRect())
+    .filter((r) => r.width > 0 && r.height > 0),
+  () => (dirty = true),
+)
 
 /** Macchine disponibili: create solo la prima volta che vengono aperte. */
 const FACTORIES: Record<string, (s: Section) => Machine> = {
@@ -126,6 +140,7 @@ function open(id: string) {
   document.title = isPrivate(id) ? 'Officina 3D · macchina privata' : `Officina 3D · ${m.name}`
   history.replaceState(null, '', isPrivate(id) ? location.pathname + location.search : '#' + id)
   ui.rimuovi.hidden = !isPrivate(id)
+  etichette.setModel(isPrivate(id) ? (m.model as PrivateModel) : null)
   buildPartList()
   select(null)
   layout()
@@ -316,11 +331,18 @@ function frame(now: number) {
   updateUi(now)
   if (controls.autoRotate) dirty = true
   controls.update()
+  if (dirty || etichette.needsUpdate) etichette.update(now)
   if (dirty) {
     renderer.render(scene, camera)
     dirty = false
   }
 }
+
+// Esc: si torna alla vista normale, senza pezzo scelto
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && selected && !document.querySelector('dialog[open]')) select(null)
+})
+nav.redraw = () => (dirty = true)
 
 nav.frame = (v) => flyTo(viewPose(camera, v))
 // scelta di un pezzo da un controllo della macchina (es. l'elenco ricambi): scheda e inquadratura

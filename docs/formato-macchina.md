@@ -79,7 +79,7 @@ L'asse dell'albero è la retta `y = altezza_asse`, `z = 0`. La ruota viene monta
 | `rotazione` | `[rx, ry, rz]` in gradi, applicate in quest'ordine (facoltativa) |
 | `materiale` | un materiale già pronto o uno di `materiali` |
 | `gruppo` | nome libero; quattro nomi sono collegati alla simulazione (vedi sotto) |
-| `tavola`, `posizione_tavola` | numero della tavola e della posizione nel catalogo: danno l'etichetta **T5·12** con la linea di richiamo. Vanno dati insieme; i pezzi con la stessa tavola e posizione si scelgono insieme e hanno una scheda sola |
+| `tavola`, `posizione_tavola` | numero della tavola e della posizione nel catalogo: danno l'etichetta **T5·12** con la linea di richiamo, che si tocca per scegliere il pezzo. Vanno dati insieme; i pezzi con la stessa tavola e posizione si scelgono insieme e hanno una scheda sola |
 | `esploso` | `direzione` (`[x, y, z]`, viene normalizzata), `distanza` (m) e `ordine` (intero) |
 | `descrizione` | facoltativa, per la scheda del pezzo |
 

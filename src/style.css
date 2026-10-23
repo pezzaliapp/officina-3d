@@ -74,6 +74,40 @@ button, select, input { font: inherit; color: inherit; }
   padding: 6px 10px; border-radius: 6px; font-size: 13px; pointer-events: none;
 }
 
+/* etichette tavola·posizione delle macchine da file: pulsanti sopra la scena (privata/etichette.ts) */
+.etichette { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.etichette[hidden] { display: none; }
+.richiami { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.richiami line { stroke: #ffd21e; stroke-width: 1; opacity: 0.75; }
+.richiami circle { fill: #ffd21e; opacity: 0.9; }
+.richiami .dim { opacity: 0.22; }
+.richiami line.prev { stroke-width: 2; opacity: 1; }
+.richiami .sel { stroke: #ff8a1e; fill: #ff8a1e; opacity: 1; }
+.richiami line.sel { stroke-width: 3.5; }
+.richiami circle.sel { stroke: #0a0d11; stroke-width: 2; }
+.etq {
+  position: absolute; left: 0; top: 0; transform-origin: 50% 50%;
+  display: flex; align-items: center; white-space: nowrap;
+  background: rgba(10, 13, 17, 0.86); border: 1px solid rgba(255, 210, 30, 0.45); border-radius: 7px;
+  font: 700 12px ui-monospace, Menlo, monospace; color: #ffd21e; padding: 0 2px;
+  pointer-events: auto; transition: opacity 0.15s;
+}
+.etq button {
+  appearance: none; border: 0; background: none; color: inherit; font: inherit; cursor: pointer;
+  min-height: 22px; min-width: 22px; padding: 0 4px; border-radius: 5px;
+}
+.etq button:focus-visible, .etq button.attivo { background: rgba(255, 210, 30, 0.2); outline: none; }
+@media (hover: hover) { .etq button:hover { background: rgba(255, 210, 30, 0.2); } }
+.etq.prev { border-color: #ffd21e; box-shadow: 0 0 0 2px rgba(255, 210, 30, 0.35); }
+.etq.sel { color: #ff8a1e; border-color: #ff8a1e; border-width: 2px; box-shadow: 0 0 0 3px rgba(255, 138, 30, 0.3); z-index: 2; }
+.etq.sel button.attivo { background: #ff8a1e; color: #0a0d11; }
+.etq.dim { opacity: 0.35; }
+/* sul telefono aree di tocco di almeno 32 px */
+@media (pointer: coarse), (max-width: 520px) {
+  .etq { font-size: 13px; }
+  .etq button { min-height: 32px; min-width: 32px; padding: 0 6px; }
+}
+
 .pannello {
   position: fixed; left: 0; right: 0; bottom: 0;
   height: min(46vh, 430px);
